@@ -70,6 +70,7 @@ import org.sagebionetworks.repo.model.Annotations;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AutoGenFactory;
 import org.sagebionetworks.repo.model.BatchResults;
+import org.sagebionetworks.repo.model.ChangeUserPassword;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.EntityBundle;
 import org.sagebionetworks.repo.model.EntityBundleCreate;
@@ -79,6 +80,11 @@ import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.LocationData;
 import org.sagebionetworks.repo.model.LocationTypeNames;
 import org.sagebionetworks.repo.model.Locationable;
+import org.sagebionetworks.repo.model.MembershipInvitation;
+import org.sagebionetworks.repo.model.MembershipInvtnSubmission;
+import org.sagebionetworks.repo.model.MembershipRequest;
+import org.sagebionetworks.repo.model.MembershipRqstSubmission;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
@@ -86,6 +92,9 @@ import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.S3Token;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
+import org.sagebionetworks.repo.model.Team;
+import org.sagebionetworks.repo.model.TeamMember;
+import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.TrashedEntity;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
@@ -98,6 +107,9 @@ import org.sagebionetworks.repo.model.attachment.AttachmentData;
 import org.sagebionetworks.repo.model.attachment.PresignedUrl;
 import org.sagebionetworks.repo.model.attachment.S3AttachmentToken;
 import org.sagebionetworks.repo.model.attachment.URLStatus;
+import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.auth.RegistrationInfo;
+import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.doi.Doi;
@@ -113,13 +125,14 @@ import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.file.State;
 import org.sagebionetworks.repo.model.file.UploadDaemonStatus;
-import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.model.query.QueryTableResults;
 import org.sagebionetworks.repo.model.request.ReferenceList;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.status.StackStatus;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.versionInfo.SynapseVersionInfo;
 import org.sagebionetworks.repo.model.wiki.WikiHeader;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
@@ -143,88 +156,87 @@ public class SynapseClientImpl implements SynapseClient {
 
 	public static final String APPLICATION_OCTET_STREAM = "application/octet-stream";
 
-	protected static final Logger log = LogManager.getLogger(SynapseClientImpl.class.getName());
+	private static final Logger log = LogManager.getLogger(SynapseClientImpl.class.getName());
 	
-	protected static final long MAX_UPLOAD_DAEMON_MS = 60*1000;
+	private static final long MAX_UPLOAD_DAEMON_MS = 60*1000;
 
-	protected static final int JSON_INDENT = 2;
-	protected static final String DEFAULT_REPO_ENDPOINT = "https://repo-prod.prod.sagebase.org/repo/v1";
-	protected static final String DEFAULT_AUTH_ENDPOINT = "https://repo-prod.prod.sagebase.org/auth/v1";
-	protected static final String DEFAULT_FILE_ENDPOINT = "https://repo-prod.prod.sagebase.org/file/v1";
-	protected static final String SESSION_TOKEN_HEADER = "sessionToken";
-	protected static final String REQUEST_PROFILE_DATA = "profile_request";
-	protected static final String PROFILE_RESPONSE_OBJECT_HEADER = "profile_response_object";
+	private static final int JSON_INDENT = 2;
+	private static final String DEFAULT_REPO_ENDPOINT = "https://repo-prod.prod.sagebase.org/repo/v1";
+	private static final String DEFAULT_AUTH_ENDPOINT = "https://repo-prod.prod.sagebase.org/auth/v1";
+	private static final String DEFAULT_FILE_ENDPOINT = "https://repo-prod.prod.sagebase.org/file/v1";
+	private static final String SESSION_TOKEN_HEADER = "sessionToken";
+	private static final String REQUEST_PROFILE_DATA = "profile_request";
+	private static final String PROFILE_RESPONSE_OBJECT_HEADER = "profile_response_object";
 
-	protected static final String PASSWORD_FIELD = "password";
-	protected static final String PARAM_GENERATED_BY = "generatedBy";
+	private static final String PASSWORD_FIELD = "password";
+	private static final String PARAM_GENERATED_BY = "generatedBy";
 	
-	protected static final String QUERY_URI = "/query?query=";
-	protected static final String REPO_SUFFIX_PATH = "/path";	
-	protected static final String REPO_SUFFIX_VERSION = "/version";
-	protected static final String ANNOTATION_URI_SUFFIX = "annotations";
+	private static final String QUERY_URI = "/query?query=";
+	private static final String REPO_SUFFIX_VERSION = "/version";
+	private static final String ANNOTATION_URI_SUFFIX = "annotations";
 	protected static final String ADMIN = "/admin";
 	protected static final String STACK_STATUS = ADMIN + "/synapse/status";
-	protected static final String ENTITY = "/entity";
-	protected static final String ATTACHMENT_S3_TOKEN = "/s3AttachmentToken";
-	protected static final String ATTACHMENT_URL = "/attachmentUrl";
-	protected static final String GENERATED_BY_SUFFIX = "/generatedBy";
+	private static final String ENTITY = "/entity";
+	private static final String ATTACHMENT_S3_TOKEN = "/s3AttachmentToken";
+	private static final String ATTACHMENT_URL = "/attachmentUrl";
+	private static final String GENERATED_BY_SUFFIX = "/generatedBy";
 
-	protected static final String ENTITY_URI_PATH = "/entity";
-	protected static final String STORAGE_DETAILS_PATH = "/storageDetails"+ENTITY_URI_PATH;
-	protected static final String ENTITY_ACL_PATH_SUFFIX = "/acl";
-	protected static final String ENTITY_ACL_RECURSIVE_SUFFIX = "?recursive=true";
-	protected static final String ENTITY_BUNDLE_PATH = "/bundle?mask=";
-	protected static final String BUNDLE = "/bundle";
-	protected static final String BENEFACTOR = "/benefactor"; // from org.sagebionetworks.repo.web.UrlHelpers
-	protected static final String ACTIVITY_URI_PATH = "/activity";
-	protected static final String GENERATED_PATH = "/generated";
-	protected static final String FAVORITE_URI_PATH = "/favorite";
+	private static final String ENTITY_URI_PATH = "/entity";
+	private static final String ENTITY_ACL_PATH_SUFFIX = "/acl";
+	private static final String ENTITY_ACL_RECURSIVE_SUFFIX = "?recursive=true";
+	private static final String ENTITY_BUNDLE_PATH = "/bundle?mask=";
+	private static final String BUNDLE = "/bundle";
+	private static final String BENEFACTOR = "/benefactor"; // from org.sagebionetworks.repo.web.UrlHelpers
+	private static final String ACTIVITY_URI_PATH = "/activity";
+	private static final String GENERATED_PATH = "/generated";
+	private static final String FAVORITE_URI_PATH = "/favorite";
 	
-	protected static final String WIKI_URI_TEMPLATE = "/%1$s/%2$s/wiki";
-	protected static final String WIKI_ID_URI_TEMPLATE = "/%1$s/%2$s/wiki/%3$s";
-	protected static final String WIKI_TREE_URI_TEMPLATE = "/%1$s/%2$s/wikiheadertree";
-	protected static final String ATTACHMENT_HANDLES = "/attachmenthandles";
-	protected static final String ATTACHMENT_FILE = "/attachment";
-	protected static final String ATTACHMENT_FILE_PREVIEW = "/attachmentpreview";
-	protected static final String FILE_NAME_PARAMETER = "?fileName=";
-	protected static final String REDIRECT_PARAMETER = "redirect=";
-	protected static final String AND_REDIRECT_PARAMETER = "&"+REDIRECT_PARAMETER;
-	protected static final String QUERY_REDIRECT_PARAMETER = "?"+REDIRECT_PARAMETER;
+	private static final String WIKI_URI_TEMPLATE = "/%1$s/%2$s/wiki";
+	private static final String WIKI_ID_URI_TEMPLATE = "/%1$s/%2$s/wiki/%3$s";
+	private static final String WIKI_TREE_URI_TEMPLATE = "/%1$s/%2$s/wikiheadertree";
+	private static final String ATTACHMENT_HANDLES = "/attachmenthandles";
+	private static final String ATTACHMENT_FILE = "/attachment";
+	private static final String ATTACHMENT_FILE_PREVIEW = "/attachmentpreview";
+	private static final String FILE_NAME_PARAMETER = "?fileName=";
+	private static final String REDIRECT_PARAMETER = "redirect=";
+	private static final String AND_REDIRECT_PARAMETER = "&"+REDIRECT_PARAMETER;
+	private static final String QUERY_REDIRECT_PARAMETER = "?"+REDIRECT_PARAMETER;
 
-	protected static final String EVALUATION_URI_PATH = "/evaluation";
-	protected static final String AVAILABLE_EVALUATION_URI_PATH = "/evaluation/available";
-	protected static final String COUNT = "count";
-	protected static final String NAME = "name";
-	protected static final String ALL = "/all";
-	protected static final String STATUS = "/status";
-	protected static final String PARTICIPANT = "participant";
-	protected static final String LOCK_ACCESS_REQUIREMENT = "/lockAccessRequirement";
-	protected static final String SUBMISSION = "submission";
-	protected static final String SUBMISSION_BUNDLE = SUBMISSION + BUNDLE;
-	protected static final String SUBMISSION_ALL = SUBMISSION + ALL;
-	protected static final String SUBMISSION_STATUS_ALL = SUBMISSION + STATUS + ALL;
-	protected static final String SUBMISSION_BUNDLE_ALL = SUBMISSION + BUNDLE + ALL;	
-	protected static final String STATUS_SUFFIX = "?status=";
-	protected static final String EVALUATION_ACL_URI_PATH = "/evaluation/acl";
-	protected static final String EVALUATION_QUERY_URI_PATH = EVALUATION_URI_PATH + "/" + SUBMISSION + QUERY_URI;
+	private static final String EVALUATION_URI_PATH = "/evaluation";
+	private static final String AVAILABLE_EVALUATION_URI_PATH = "/evaluation/available";
+	private static final String NAME = "name";
+	private static final String ALL = "/all";
+	private static final String STATUS = "/status";
+	private static final String PARTICIPANT = "participant";
+	private static final String LOCK_ACCESS_REQUIREMENT = "/lockAccessRequirement";
+	private static final String SUBMISSION = "submission";
+	private static final String SUBMISSION_BUNDLE = SUBMISSION + BUNDLE;
+	private static final String SUBMISSION_ALL = SUBMISSION + ALL;
+	private static final String SUBMISSION_STATUS_ALL = SUBMISSION + STATUS + ALL;
+	private static final String SUBMISSION_BUNDLE_ALL = SUBMISSION + BUNDLE + ALL;	
+	private static final String STATUS_SUFFIX = "?status=";
+	private static final String EVALUATION_ACL_URI_PATH = "/evaluation/acl";
+	private static final String EVALUATION_QUERY_URI_PATH = EVALUATION_URI_PATH + "/" + SUBMISSION + QUERY_URI;
+	
+	protected static final String COLUMN = "/column";
 
-	protected static final String USER_PROFILE_PATH = "/userProfile";
+	private static final String USER_PROFILE_PATH = "/userProfile";
 	
-	protected static final String USER_GROUP_HEADER_BATCH_PATH = "/userGroupHeaders/batch?ids=";
+	private static final String USER_GROUP_HEADER_BATCH_PATH = "/userGroupHeaders/batch?ids=";
 	
-	protected static final String USER_GROUP_HEADER_PREFIX_PATH = "/userGroupHeaders?prefix=";
+	private static final String USER_GROUP_HEADER_PREFIX_PATH = "/userGroupHeaders?prefix=";
 
-	protected static final String TOTAL_NUM_RESULTS = "totalNumberOfResults";
+	private static final String TOTAL_NUM_RESULTS = "totalNumberOfResults";
 	
-	protected static final String ACCESS_REQUIREMENT = "/accessRequirement";
+	private static final String ACCESS_REQUIREMENT = "/accessRequirement";
 	
-	protected static final String ACCESS_REQUIREMENT_UNFULFILLED = "/accessRequirementUnfulfilled";
+	private static final String ACCESS_REQUIREMENT_UNFULFILLED = "/accessRequirementUnfulfilled";
 	
-	protected static final String ACCESS_APPROVAL = "/accessApproval";
+	private static final String ACCESS_APPROVAL = "/accessApproval";
 	
-	protected static final String VERSION_INFO = "/version";
+	private static final String VERSION_INFO = "/version";
 	
-	protected static final String FILE_HANDLE = "/fileHandle";
+	private static final String FILE_HANDLE = "/fileHandle";
 	private static final String FILE = "/file";
 	private static final String FILE_PREVIEW = "/filepreview";
 	private static final String EXTERNAL_FILE_HANDLE = "/externalFileHandle";
@@ -247,11 +259,34 @@ public class SynapseClientImpl implements SynapseClient {
 	private static final String ETAG = "etag";
 
 	// web request pagination parameters
-	protected static final String LIMIT = "limit";
-	protected static final String OFFSET = "offset";
+	public static final String LIMIT = "limit";
+	public static final String OFFSET = "offset";
 
-	protected static final String LIMIT_1_OFFSET_1 = "' limit 1 offset 1";
-	protected static final String SELECT_ID_FROM_ENTITY_WHERE_PARENT_ID = "select id from entity where parentId == '";
+	private static final String LIMIT_1_OFFSET_1 = "' limit 1 offset 1";
+	private static final String SELECT_ID_FROM_ENTITY_WHERE_PARENT_ID = "select id from entity where parentId == '";
+
+	// Team
+	protected static final String TEAM = "/team";
+	protected static final String TEAMS = "/teams";
+	protected static final String USER = "/user";
+	protected static final String NAME_FRAGMENT_FILTER = "fragment";
+	protected static final String ICON = "/icon";
+	protected static final String TEAM_MEMBERS = "/teamMembers";
+	protected static final String MEMBER = "/member";
+	protected static final String PERMISSION = "/permission";
+	protected static final String MEMBERSHIP_STATUS = "/membershipStatus";
+	protected static final String TEAM_MEMBERSHIP_PERMISSION = "isAdmin";
+	protected static final String TEAM_UPDATE_SEARCH_CACHE = "/updateTeamSearchCache";
+
+	
+	// membership invitation
+	private static final String MEMBERSHIP_INVITATION = "/membershipInvitation";
+	private static final String OPEN_MEMBERSHIP_INVITATION = "/openInvitation";
+	private static final String TEAM_ID_REQUEST_PARAMETER = "teamId";
+	// membership request
+	private static final String MEMBERSHIP_REQUEST = "/membershipRequest";
+	private static final String OPEN_MEMBERSHIP_REQUEST = "/openRequest";
+	private static final String REQUESTOR_ID_REQUEST_PARAMETER = "requestorId";
 
 	
 	protected String repoEndpoint;
@@ -261,12 +296,12 @@ public class SynapseClientImpl implements SynapseClient {
 	protected Map<String, String> defaultGETDELETEHeaders;
 	protected Map<String, String> defaultPOSTPUTHeaders;
 
-	protected JSONObject profileData;
-	protected boolean requestProfile;
-	protected HttpClientProvider clientProvider;
-	protected DataUploader dataUploader;
+	private JSONObject profileData;
+	private boolean requestProfile;
+	private HttpClientProvider clientProvider;
+	private DataUploader dataUploader;
 
-	protected AutoGenFactory autoGenFactory = new AutoGenFactory();
+	private AutoGenFactory autoGenFactory = new AutoGenFactory();
 	
 	/**
 	 * The maximum number of threads that should be used to upload asynchronous file chunks.
@@ -450,8 +485,8 @@ public class SynapseClientImpl implements SynapseClient {
 		return this.profileData;
 	}
 	
-	protected String userName;
-	protected String apiKey;
+	private String userName;
+	private String apiKey;
 	
 
 	/**
@@ -566,6 +601,13 @@ public class SynapseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public void logout() throws SynapseException {
+		deleteUri(authEndpoint, "/session");
+		defaultGETDELETEHeaders.remove(SESSION_TOKEN_HEADER);
+		defaultPOSTPUTHeaders.remove(SESSION_TOKEN_HEADER);
+	}
+	
+	@Override
 	public UserSessionData getUserSessionData() throws SynapseException {
 		//get the UserSessionData if the session token is set
 		UserSessionData userData = null;
@@ -577,6 +619,7 @@ public class SynapseClientImpl implements SynapseClient {
 		userData.setProfile(profile);
 		return userData;
 	}
+	
 	@Override
 	public boolean revalidateSession() throws SynapseException {
 		JSONObject sessionInfo = new JSONObject();
@@ -775,18 +818,6 @@ public class SynapseClientImpl implements SynapseClient {
 		} catch (JSONObjectAdapterException e) {
 			throw new SynapseException(e);
 		}
-	}
-
-	/**
-	 * Get a dataset, layer, preview, annotations, etc...
-	 * 
-	 * @param uri
-	 * @return the retrieved entity
-	 * @throws SynapseException
-	 */
-	@Override
-	public JSONObject getEntity(String uri) throws SynapseException {
-		return getSynapseEntity(repoEndpoint, uri);
 	}
 
 	/**
@@ -1176,6 +1207,7 @@ public class SynapseClientImpl implements SynapseClient {
 		}
 	}
 	
+	@SuppressWarnings("unchecked")
 	private static Class<AccessRequirement> getAccessRequirementClassFromType(String s) {
 		try {
 			return (Class<AccessRequirement>)Class.forName(s);
@@ -1183,6 +1215,7 @@ public class SynapseClientImpl implements SynapseClient {
 			throw new RuntimeException(e);
 		}
 	}
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends AccessRequirement> T createAccessRequirement(T ar) throws SynapseException {
 		
@@ -1254,6 +1287,7 @@ public class SynapseClientImpl implements SynapseClient {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private static Class<AccessApproval> getAccessApprovalClassFromType(String s) {
 		try {
 			return (Class<AccessApproval>)Class.forName(s);
@@ -1262,6 +1296,7 @@ public class SynapseClientImpl implements SynapseClient {
 		}
 	}
 	
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends AccessApproval> T createAccessApproval(T aa) throws SynapseException {
 		
@@ -1279,6 +1314,16 @@ public class SynapseClientImpl implements SynapseClient {
 			throw new SynapseException(e);
 		}
 		
+	}
+
+	/**
+	 * Get a dataset, layer, preview, annotations, etc...
+	 * 
+	 * @return the retrieved entity
+	 */
+	@Override
+	public JSONObject getEntity(String uri) throws SynapseException {
+		return getSynapseEntity(repoEndpoint, uri);
 	}
 
 	/**
@@ -1316,37 +1361,12 @@ public class SynapseClientImpl implements SynapseClient {
 	 * @param id
 	 * @return
 	 */
-	protected static String createEntityUri(String prefix, String id) {
+	private static String createEntityUri(String prefix, String id) {
 		StringBuilder uri = new StringBuilder();
 		uri.append(prefix);
 		uri.append("/");
 		uri.append(id);
 		return uri.toString();
-	}
-
-	/**
-	 * Update a dataset, layer, preview, annotations, etc...
-	 * 
-	 * This convenience method first grabs a copy of the currently stored
-	 * entity, then overwrites fields from the entity passed in on top of the
-	 * stored entity we retrieved and then PUTs the entity. This essentially
-	 * does a partial update from the point of view of the user of this API.
-	 * 
-	 * Note that users of this API may want to inspect what they are overwriting
-	 * before they do so. Another approach would be to do a GET, display the
-	 * field to the user, allow them to edit the fields, and then do a PUT.
-	 * 
-	 * @param uri
-	 * @param entity
-	 * @return the updated entity
-	 * @throws SynapseException
-	 */
-	@Override
-	@Deprecated
-	// Use putEntity
-	public JSONObject updateEntity(String uri, JSONObject entity)
-			throws SynapseException {
-		return updateSynapseEntity(repoEndpoint, uri, entity);
 	}
 
 	/**
@@ -1394,37 +1414,25 @@ public class SynapseClientImpl implements SynapseClient {
 	/**
 	 * Update a dataset, layer, preview, annotations, etc...
 	 * 
-	 * @param uri
-	 * @param entity
 	 * @return the updated entity
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject putJSONObject(String uri, JSONObject entity, Map<String,String> headers)
+	private JSONObject putJSONObject(String uri, JSONObject entity, Map<String,String> headers)
 			throws SynapseException {
 		return putJSONObject(repoEndpoint, uri, entity, headers);
 	}
 	
 	/**
-	 * Create a dataset, layer, etc..
-	 * 
-	 * @param uri
-	 * @throws SynapseException
+	 * Create a dataset, layer, etc...
 	 */
-	@Override
-	public JSONObject postUri(String uri) throws SynapseException {
+	protected JSONObject postUri(String uri) throws SynapseException {
 		return postUri(repoEndpoint, uri);
 	}
 
 
 	/**
-	 * Delete a dataset, layer, etc..
-	 * 
-	 * @param uri
-	 * @throws SynapseException
+	 * Delete a dataset, layer, etc...
 	 */
-	@Override
-	public void deleteUri(String uri) throws SynapseException {
+	private void deleteUri(String uri) throws SynapseException {
 		deleteUri(repoEndpoint, uri);
 		return;
 	}
@@ -2269,7 +2277,7 @@ public class SynapseClientImpl implements SynapseClient {
 	 * @throws IOException
 	 * @throws MalformedURLException
 	 */
-	protected URL getUrl(String uri) throws ClientProtocolException, IOException,
+	private URL getUrl(String uri) throws ClientProtocolException, IOException,
 			MalformedURLException {
 		HttpGet get = new HttpGet(uri);
 		for(String headerKey: this.defaultGETDELETEHeaders.keySet()){
@@ -2934,24 +2942,14 @@ public class SynapseClientImpl implements SynapseClient {
 	/**
 	 * Create a new login, etc ...
 	 * 
-	 * @param uri
-	 * @param entity
 	 * @return the newly created entity
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject createAuthEntity(String uri, JSONObject entity)
+	private JSONObject createAuthEntity(String uri, JSONObject entity)
 			throws SynapseException {
 		return createJSONObjectEntity(authEndpoint, uri, entity);
 	}
 
-	@Override
-	public JSONObject getAuthEntity(String uri)
-			throws SynapseException {
-		return getSynapseEntity(authEndpoint, uri);
-	}
-	@Override
-	public JSONObject putAuthEntity(String uri, JSONObject entity)
+	private JSONObject putAuthEntity(String uri, JSONObject entity)
 			throws SynapseException {
 		if (null == authEndpoint) {
 			throw new IllegalArgumentException("must provide endpoint");
@@ -2972,14 +2970,9 @@ public class SynapseClientImpl implements SynapseClient {
 	/**
 	 * Create a new dataset, layer, etc ...
 	 * 
-	 * @param endpoint
-	 * @param uri
-	 * @param entity
 	 * @return the newly created entity
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject createJSONObjectEntity(String endpoint, String uri,
+	private JSONObject createJSONObjectEntity(String endpoint, String uri,
 			JSONObject entity) throws SynapseException {
 		if (null == endpoint) {
 			throw new IllegalArgumentException("must provide endpoint");
@@ -3007,7 +3000,7 @@ public class SynapseClientImpl implements SynapseClient {
 	 * @throws SynapseException 
 	 */
 	@SuppressWarnings("unchecked")
-	protected <T extends JSONEntity> T createJSONEntity (String endpoint, String uri, T entity) throws JSONObjectAdapterException, SynapseException{
+	private <T extends JSONEntity> T createJSONEntity (String endpoint, String uri, T entity) throws JSONObjectAdapterException, SynapseException{
 		if (null == endpoint) {
 			throw new IllegalArgumentException("must provide endpoint");
 		}
@@ -3034,7 +3027,7 @@ public class SynapseClientImpl implements SynapseClient {
 	 * @throws SynapseException
 	 */
 	@SuppressWarnings("unchecked")
-	protected <T extends JSONEntity> T updateJSONEntity(String endpoint, String uri, T entity) throws JSONObjectAdapterException, SynapseException{
+	private <T extends JSONEntity> T updateJSONEntity(String endpoint, String uri, T entity) throws JSONObjectAdapterException, SynapseException{
 		if (null == endpoint) {
 			throw new IllegalArgumentException("must provide endpoint");
 		}
@@ -3052,13 +3045,7 @@ public class SynapseClientImpl implements SynapseClient {
 	}
 	
 	/**
-	 * Get a JSONEntity.
-	 * @param endpoint
-	 * @param uri
-	 * @param clazz
-	 * @return
-	 * @throws JSONObjectAdapterException
-	 * @throws SynapseException
+	 * Get a JSONEntity
 	 */
 	protected <T extends JSONEntity> T getJSONEntity(String endpoint, String uri, Class<? extends T> clazz) throws JSONObjectAdapterException, SynapseException{
 		if (null == endpoint) {
@@ -3079,13 +3066,9 @@ public class SynapseClientImpl implements SynapseClient {
 	/**
 	 * Get a dataset, layer, preview, annotations, etc...
 	 * 
-	 * @param endpoint
-	 * @param uri
 	 * @return the retrieved entity
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject getSynapseEntity(String endpoint, String uri)
+	private JSONObject getSynapseEntity(String endpoint, String uri)
 			throws SynapseException {
 		if (null == endpoint) {
 			throw new IllegalArgumentException("must provide endpoint");
@@ -3151,14 +3134,9 @@ public class SynapseClientImpl implements SynapseClient {
 	/**
 	 * Update a dataset, layer, preview, annotations, etc...
 	 * 
-	 * @param endpoint
-	 * @param uri
-	 * @param entity
 	 * @return the updated entity
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject putJSONObject(String endpoint, String uri,
+	private JSONObject putJSONObject(String endpoint, String uri,
 			JSONObject entity, Map<String,String> headers) throws SynapseException {
 			if (null == endpoint) {
 				throw new IllegalArgumentException("must provide endpoint");
@@ -3179,26 +3157,16 @@ public class SynapseClientImpl implements SynapseClient {
 	
 	/**
 	 * Call Create on any URI
-	 * 
-	 * @param endpoint
-	 * @param uri
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject postUri(String endpoint, String uri) throws SynapseException {
+	private JSONObject postUri(String endpoint, String uri) throws SynapseException {
 		if (null == uri) throw new IllegalArgumentException("must provide uri");		
 		return signAndDispatchSynapseRequest(endpoint, uri, "POST", null, defaultPOSTPUTHeaders);
 	}
 
 	/**
 	 * Call Delete on any URI
-	 * 
-	 * @param endpoint
-	 * @param uri
-	 * @throws SynapseException
 	 */
-	@Override
-	public void deleteUri(String endpoint, String uri) throws SynapseException {
+	private void deleteUri(String endpoint, String uri) throws SynapseException {
 		if (null == uri) throw new IllegalArgumentException("must provide uri");		
 		signAndDispatchSynapseRequest(endpoint, uri, "DELETE", null, defaultGETDELETEHeaders);
 	}
@@ -3206,14 +3174,11 @@ public class SynapseClientImpl implements SynapseClient {
 	/**
 	 * Perform a query
 	 * 
-	 * @param endpoint
 	 * @param query
 	 *            the query to perform
 	 * @return the query result
-	 * @throws SynapseException
 	 */
-	@Override
-	public JSONObject querySynapse(String endpoint, String query)
+	private JSONObject querySynapse(String endpoint, String query)
 			throws SynapseException {
 		try {
 			if (null == endpoint) {
@@ -3365,7 +3330,7 @@ public class SynapseClientImpl implements SynapseClient {
 				} else if (statusCode >= 400 && statusCode < 500) {
 					throw new SynapseUserException(exceptionContent);
 				} else {
-					throw new SynapseServiceException("request content: "+requestContent+" exception content: "+exceptionContent);
+					throw new SynapseServiceException("request content: "+requestContent+" exception content: "+exceptionContent+" status code: "+statusCode);
 				}
 			} catch (JSONException jsonEx) {
 				// swallow the JSONException since its not the real problem and
@@ -3399,30 +3364,6 @@ public class SynapseClientImpl implements SynapseClient {
 		JSONObject json = getEntity(STACK_STATUS);
 		return EntityFactory
 				.createEntityFromJSONObject(json, StackStatus.class);
-	}
-	
-	/**
-	 * Get a dataset, layer, preview, annotations, etc...
-	 * 
-	 * @param <T>
-	 * 
-	 * @param uri
-	 * @param clazz
-	 * @return the retrieved entity
-	 * @throws JSONObjectAdapterException
-	 * @throws SynapseException
-	 */
-	@Override
-	public <T extends JSONEntity> T getJSONEntity(String uri,
-			Class<? extends T> clazz) throws SynapseException,
-			JSONObjectAdapterException {
-		JSONObject jsonObject = getEntity(uri);
-		try {
-			return EntityFactory.createEntityFromJSONObject(jsonObject, clazz);
-		} catch (Exception e) {
-			throw new SynapseException("Failed to create an Entity for <<"+jsonObject+">>", e);
-		}
-		
 	}
 	
 	@Override
@@ -3792,8 +3733,8 @@ public class SynapseClientImpl implements SynapseClient {
 		}
 	}
 	@Override
-	public PaginatedResults<Evaluation> getEvaluationByContentSource(String projectId, int offset, int limit) throws SynapseException {
-		String url = EVALUATION_URI_PATH + "/project/" + projectId + "?" + OFFSET + "=" + offset + "&limit=" + limit;
+	public PaginatedResults<Evaluation> getEvaluationByContentSource(String id, int offset, int limit) throws SynapseException {
+		String url = ENTITY_URI_PATH + "/" + id + EVALUATION_URI_PATH + "?" + OFFSET + "=" + offset + "&limit=" + limit;
 		JSONObject jsonObj = getEntity(url);
 		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
 		PaginatedResults<Evaluation> results = new PaginatedResults<Evaluation>(Evaluation.class);
@@ -4447,6 +4388,13 @@ public class SynapseClientImpl implements SynapseClient {
 			throw new SynapseException(e);
 		}
 	}
+	
+	@Override
+	public void invalidateApiKey() throws SynapseException {
+		deleteUri(authEndpoint, "/secretKey");
+		setApiKey(null);
+	}
+	
 	@Override
 	public AccessControlList updateEvaluationAcl(AccessControlList acl) throws SynapseException {
 
@@ -4500,4 +4448,450 @@ public class SynapseClientImpl implements SynapseClient {
 			throw new SynapseException(e);
 		}
 	}
+
+	@Override
+	public ColumnModel createColumnModel(ColumnModel model) throws SynapseException {
+		if(model == null) throw new IllegalArgumentException("ColumnModel cannot be null");
+		String url = COLUMN;
+		return createJSONEntity(url, model);
+	}
+
+	@Override
+	public ColumnModel getColumnModel(String columnId) throws SynapseException {
+		if(columnId == null) throw new IllegalArgumentException("ColumnId cannot be null");
+		String url = COLUMN+"/"+columnId;
+		try {
+			return getJSONEntity(repoEndpoint, url, ColumnModel.class);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public List<ColumnModel> getColumnModelsForTableEntity(String tableEntityId) throws SynapseException {
+		if(tableEntityId == null) throw new IllegalArgumentException("tableEntityId cannot be null");
+		String url = ENTITY+"/"+tableEntityId+COLUMN;
+		try {
+			PaginatedColumnModels pcm = getJSONEntity(repoEndpoint, url, PaginatedColumnModels.class);
+			return pcm.getResults();
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public PaginatedColumnModels listColumnModels(String prefix, Long limit, Long offset) throws SynapseException {
+		String url = buildListColumnModelUrl(prefix, limit, offset);
+		try {
+			return  getJSONEntity(repoEndpoint, url, PaginatedColumnModels.class);
+			
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	/**
+	 * Build up the URL for listing all ColumnModels
+	 * @param prefix
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	static String buildListColumnModelUrl(String prefix, Long limit, Long offset) {
+		StringBuilder builder = new StringBuilder();
+		builder.append(COLUMN);
+		int count =0;
+		if(prefix != null || limit != null || offset != null){
+			builder.append("?");
+		}
+		if(prefix != null){
+			builder.append("prefix=");
+			builder.append(prefix);
+			count++;
+		}
+		if(limit != null){
+			if(count > 0){
+				builder.append("&");
+			}
+			builder.append("limit=");
+			builder.append(limit);
+			count++;
+		}
+		if(offset != null){
+			if(count > 0){
+				builder.append("&");
+			}
+			builder.append("offset=");
+			builder.append(offset);
+		}
+		return builder.toString();
+	}
+	
+	@Override
+	public Team createTeam(Team team)  throws SynapseException {
+		try {
+			JSONObject jsonObj = EntityFactory.createJSONObjectForEntity(team);
+			jsonObj = createJSONObject(TEAM, jsonObj);
+			return initializeFromJSONObject(jsonObj, Team.class);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public Team getTeam(String id) throws SynapseException {
+		JSONObject jsonObj = getEntity(TEAM+"/"+id);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		Team results = new Team();
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+
+	@Override
+	public PaginatedResults<Team> getTeams(String fragment, long limit,
+			long offset) throws SynapseException {
+		String uri = null;
+		if (fragment==null) {
+			uri = TEAMS+"?"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		} else {
+			uri = TEAMS+"?"+NAME_FRAGMENT_FILTER+"="+urlEncode(fragment)+"&"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		}
+		JSONObject jsonObj = getEntity(uri);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		PaginatedResults<Team> results = new PaginatedResults<Team>(Team.class);
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public PaginatedResults<Team> getTeamsForUser(String memberId, long limit,
+			long offset) throws SynapseException {
+		String uri = USER+"/"+memberId+TEAM+"?"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		JSONObject jsonObj = getEntity(uri);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		PaginatedResults<Team> results = new PaginatedResults<Team>(Team.class);
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public URL getTeamIcon(String teamId, Boolean redirect)
+			throws SynapseException {
+		String uri = null;
+		if (redirect==null) {
+			uri = TEAM+"/"+teamId+ICON;
+		} else {
+			uri = TEAM+"/"+teamId+ICON+"?"+REDIRECT_PARAMETER+redirect;
+		}
+		try {
+			return getUrl(getRepoEndpoint()+uri);
+		} catch (IOException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public Team updateTeam(Team team) throws SynapseException {
+		JSONObjectAdapter toUpdateAdapter = new JSONObjectAdapterImpl();
+		JSONObject obj;
+		try {
+			obj = new JSONObject(team.writeToJSONObject(toUpdateAdapter).toJSONString());
+			JSONObject jsonObj = putJSONObject(TEAM, obj, new HashMap<String,String>());
+			JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+			return new Team(adapter);
+		} catch (JSONException e1) {
+			throw new RuntimeException(e1);
+		} catch (JSONObjectAdapterException e1) {
+			throw new RuntimeException(e1);
+		}
+	}
+
+	@Override
+	public void deleteTeam(String teamId) throws SynapseException {
+		deleteUri(TEAM+"/"+teamId);
+	}
+
+	@Override
+	public void addTeamMember(String teamId, String memberId)
+			throws SynapseException {
+		putJSONObject(TEAM+"/"+teamId+MEMBER+"/"+memberId, new JSONObject(), new HashMap<String,String>());
+	}
+	
+	private static String urlEncode(String s) {
+		try {
+			return URLEncoder.encode(s, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public PaginatedResults<TeamMember> getTeamMembers(String teamId, String fragment,
+			long limit, long offset) throws SynapseException {
+		String uri = null;
+		if (fragment==null) {
+			uri = TEAM_MEMBERS+"/"+teamId+"?"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		} else {
+			uri = TEAM_MEMBERS+"/"+teamId+"?"+NAME_FRAGMENT_FILTER+"="+urlEncode(fragment)+
+					"&"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		}
+		JSONObject jsonObj = getEntity(uri);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		PaginatedResults<TeamMember> results = new PaginatedResults<TeamMember>(TeamMember.class);
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public void removeTeamMember(String teamId, String memberId)
+			throws SynapseException {
+		deleteUri(TEAM+"/"+teamId+MEMBER+"/"+memberId);
+	}
+	
+	@Override
+	public void setTeamMemberPermissions(String teamId, String memberId,
+			boolean isAdmin) throws SynapseException {
+		putJSONObject(TEAM+"/"+teamId+MEMBER+"/"+memberId+
+				PERMISSION+"?"+TEAM_MEMBERSHIP_PERMISSION+"="+isAdmin, 
+				new JSONObject(), new HashMap<String,String>());
+	}
+
+	@Override
+	public TeamMembershipStatus getTeamMembershipStatus(String teamId,
+			String principalId) throws SynapseException {
+		JSONObject jsonObj = getEntity(TEAM+"/"+teamId+MEMBER+"/"+principalId+MEMBERSHIP_STATUS);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		TeamMembershipStatus results = new TeamMembershipStatus();
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public MembershipInvtnSubmission createMembershipInvitation(
+			MembershipInvtnSubmission invitation) throws SynapseException {
+		try {
+			JSONObject jsonObj = EntityFactory.createJSONObjectForEntity(invitation);
+			jsonObj = createJSONObject(MEMBERSHIP_INVITATION, jsonObj);
+			return initializeFromJSONObject(jsonObj, MembershipInvtnSubmission.class);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public MembershipInvtnSubmission getMembershipInvitation(String invitationId)
+			throws SynapseException {
+		JSONObject jsonObj = getEntity(MEMBERSHIP_INVITATION+"/"+invitationId);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		MembershipInvtnSubmission results = new MembershipInvtnSubmission();
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public PaginatedResults<MembershipInvitation> getOpenMembershipInvitations(
+			String memberId, String teamId, long limit, long offset)
+			throws SynapseException {
+		
+		String uri = null;
+		if (teamId==null) {
+			uri = USER+"/"+memberId+OPEN_MEMBERSHIP_INVITATION+"?"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		} else {
+			uri = USER+"/"+memberId+OPEN_MEMBERSHIP_INVITATION+"?"+TEAM_ID_REQUEST_PARAMETER+"="+teamId+"&"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		
+		}
+		JSONObject jsonObj = getEntity(uri);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		PaginatedResults<MembershipInvitation> results = new PaginatedResults<MembershipInvitation>(MembershipInvitation.class);
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public void deleteMembershipInvitation(String invitationId)
+			throws SynapseException {
+		deleteUri(MEMBERSHIP_INVITATION+"/"+invitationId);
+	}
+
+	@Override
+	public MembershipRqstSubmission createMembershipRequest(
+			MembershipRqstSubmission request) throws SynapseException {
+		try {
+			JSONObject jsonObj = EntityFactory.createJSONObjectForEntity(request);
+			jsonObj = createJSONObject(MEMBERSHIP_REQUEST, jsonObj);
+			return initializeFromJSONObject(jsonObj, MembershipRqstSubmission.class);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public MembershipRqstSubmission getMembershipRequest(String requestId)
+			throws SynapseException {
+		JSONObject jsonObj = getEntity(MEMBERSHIP_REQUEST+"/"+requestId);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		MembershipRqstSubmission results = new MembershipRqstSubmission();
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public PaginatedResults<MembershipRequest> getOpenMembershipRequests(
+			String teamId, String requestorId, long limit, long offset)
+			throws SynapseException {
+		String uri = null;
+		if (requestorId==null) {
+			uri = TEAM+"/"+teamId+OPEN_MEMBERSHIP_REQUEST+"?"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		} else {
+			uri = TEAM+"/"+teamId+OPEN_MEMBERSHIP_REQUEST+"?"+REQUESTOR_ID_REQUEST_PARAMETER+"="+requestorId+"&"+OFFSET+"="+offset+"&"+LIMIT+"="+limit;
+		
+		}
+		JSONObject jsonObj = getEntity(uri);
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObj);
+		PaginatedResults<MembershipRequest> results = new PaginatedResults<MembershipRequest>(MembershipRequest.class);
+		try {
+			results.initializeFromJSONObject(adapter);
+			return results;
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+
+	@Override
+	public void deleteMembershipRequest(String requestId)
+			throws SynapseException {
+		deleteUri(MEMBERSHIP_REQUEST+"/"+requestId);
+	}
+	
+	@Override
+	public void updateTeamSearchCache() throws SynapseException {
+		postUri(TEAM_UPDATE_SEARCH_CACHE);
+	}
+
+	@Override
+	public void createUser(NewUser user) throws SynapseException {
+		try {
+			JSONObject obj = EntityFactory.createJSONObjectForEntity(user);
+			createAuthEntity("/user", obj);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public NewUser getAuthUserInfo() throws SynapseException {
+		try {
+			JSONObject obj = getSynapseEntity(authEndpoint, "/user");
+			return EntityFactory.createEntityFromJSONObject(obj, NewUser.class);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public void changePassword(String newPassword) throws SynapseException {
+		try {
+			ChangeUserPassword change = new ChangeUserPassword();
+			change.setNewPassword(newPassword);
+			
+			JSONObject obj = EntityFactory.createJSONObjectForEntity(change);
+			createAuthEntity("/userPassword", obj);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public void changePassword(String sessionToken, String newPassword) throws SynapseException {
+		try {
+			RegistrationInfo info = new RegistrationInfo();
+			info.setRegistrationToken(AuthorizationConstants.REGISTRATION_TOKEN_PREFIX + sessionToken);
+			info.setPassword(newPassword);
+			
+			JSONObject obj = EntityFactory.createJSONObjectForEntity(info);
+			createAuthEntity("/registeringUserPassword", obj);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public void changeEmail(String sessionToken, String newPassword) throws SynapseException {
+		try {
+			RegistrationInfo info = new RegistrationInfo();
+			info.setRegistrationToken(AuthorizationConstants.CHANGE_EMAIL_TOKEN_PREFIX + sessionToken);
+			info.setPassword(newPassword);
+			
+			JSONObject obj = EntityFactory.createJSONObjectForEntity(info);
+			createAuthEntity("/changeEmail", obj);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public void sendPasswordResetEmail() throws SynapseException {
+		createAuthEntity("/apiPasswordEmail", new JSONObject());	
+	}
+	
+	@Override
+	public void sendPasswordResetEmail(String email) throws SynapseException {
+		try {
+			NewUser user = new NewUser();
+			user.setEmail(email);
+			
+			JSONObject obj = EntityFactory.createJSONObjectForEntity(user);
+			createAuthEntity("/userPasswordEmail", obj);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		}
+	}
+	
+	@Override
+	public Session passThroughOpenIDParameters(String queryString, Boolean acceptsTermsOfUse) throws SynapseException {
+		try {
+			URI uri = new URI(null, null, "/openIdCallback", 
+					queryString + "&org.sagebionetworks.acceptsTermsOfUse=" + acceptsTermsOfUse, null);
+			JSONObject session = createAuthEntity(uri.toString(), new JSONObject());
+			return EntityFactory.createEntityFromJSONObject(session, Session.class);
+		} catch (JSONObjectAdapterException e) {
+			throw new SynapseException(e);
+		} catch (URISyntaxException e) {
+			throw new SynapseException(e);
+		}
+	}
 }
+

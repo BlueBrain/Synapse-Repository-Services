@@ -43,6 +43,7 @@ public class SqlConstants {
 	public static final String COL_REVISION_MODIFIED_BY		= "MODIFIED_BY";
 	public static final String COL_REVISION_MODIFIED_ON		= "MODIFIED_ON";
 	public static final String COL_REVISION_FILE_HANDLE_ID	= "FILE_HANDLE_ID";
+	public static final String COL_REVISION_COLUMN_MODEL_IDS= "COLUMN_MODEL_IDS";
 	public static final String DDL_FILE_REVISION			="schema/Revision-ddl.sql";
 
 	// The Reference table
@@ -132,7 +133,14 @@ public class SqlConstants {
 	public static final String COL_SENT_MESSAGES_CHANGE_NUM			= "CHANGE_NUM";
 	public static final String COL_SENT_MESSAGES_TIME_STAMP			= "TIME_STAMP";
 	public static final String DDL_SENT_MESSAGES					= "schema/SentMessages-ddl.sql";
-	
+
+ 	// Processed messages
+ 	public static final String TABLE_PROCESSED_MESSAGES				= "PROCESSED_MESSAGES";
+ 	public static final String COL_PROCESSED_MESSAGES_CHANGE_NUM	= "CHANGE_NUM";
+ 	public static final String COL_PROCESSED_MESSAGES_TIME_STAMP	= "TIME_STAMP";
+	public static final String COL_PROCESSED_MESSAGES_QUEUE_NAME	= "QUEUE_NAME";
+ 	public static final String DDL_PROCESSED_MESSAGES				= "schema/ProcessedMessages-ddl.sql";
+
 	// The file metada table
 	public static final String TABLE_FILES							= "FILES";
 	public static final String COL_FILES_ID							= "ID";
@@ -297,19 +305,74 @@ public class SqlConstants {
 	public static final String COL_WIKI_MARKDOWN			= "MARKDOWN";
 	public static final String DDL_FILE_WIKI_PAGE = "schema/WikiPage-ddl.sql";
 	
+	// The column model table
+	public static final String TABLE_COLUMN_MODEL			= "COLUMN_MODEL";
+	public static final String COL_CM_ID					= "ID";
+	public static final String COL_CM_NAME					= "NAME";
+	public static final String COL_CM_HASH					= "HASH";
+	public static final String COL_CM_BYTES					= "BYTES";
+	public static final String DDL_COLUMN_MODEL = "schema/ColumnModel-ddl.sql";
+	
+	// The bound column model table
+	public static final String TABLE_BOUND_COLUMN			= "BOUND_COLUMN";
+	public static final String COL_BOUND_CM_COLUMN_ID		= "COLUMN_ID";
+	public static final String COL_BOUND_CM_OBJECT_ID		= "OBJECT_ID";
+	public static final String COL_BOUND_CM_IS_CURRENT		= "IS_CURRENT";
+	public static final String DDL_BOUND_COLUMN = "schema/BoundColumn-ddl.sql";
+	
 	// The wiki attachment table
 	public static final String TABLE_WIKI_ATTACHMENT				= "WIKI_ATTACHMENTS";
 	public static final String COL_WIKI_ATTACHMENT_ID				= "WIKI_ID";
 	public static final String COL_WIKI_ATTACHMENT_FILE_HANDLE_ID	= "FILE_HANDLE_ID";
 	public static final String COL_WIKI_ATTACHMENT_FILE_NAME		= "FILE_NAME";
 	public static final String DDL_FILE_WIKI_ATTATCHMENT = "schema/WikiAttachments-ddl.sql";
-	
+
 	// The wiki owners table
 	public static final String TABLE_WIKI_OWNERS					= "WIKI_OWNERS";
 	public static final String COL_WIKI_ONWERS_OWNER_ID				= "OWNER_ID";
 	public static final String COL_WIKI_ONWERS_OBJECT_TYPE			= "OWNER_OBJECT_TYPE";
 	public static final String COL_WIKI_ONWERS_ROOT_WIKI_ID			= "ROOT_WIKI_ID";
 	public static final String DDL_FILE_WIKI_ONWERS = "schema/WikiOwners-ddl.sql";
+	
+	/** V2 constants for wiki-related tables **/
+	// The wiki page table
+	public static final String V2_TABLE_WIKI_PAGE				= "V2_WIKI_PAGE";
+	public static final String V2_COL_WIKI_ID					= "ID";
+	public static final String V2_COL_WIKI_ETAG					= "ETAG";
+	public static final String V2_COL_WIKI_TITLE				= "TITLE";
+	public static final String V2_COL_WIKI_CREATED_ON			= "CREATED_ON";
+	public static final String V2_COL_WIKI_CREATED_BY			= "CREATED_BY";
+	public static final String V2_COL_WIKI_MODIFIED_ON			= "MODIFIED_ON";
+	public static final String V2_COL_WIKI_MODIFIED_BY			= "MODIFIED_BY";
+	public static final String V2_COL_WIKI_PARENT_ID			= "PARENT_ID";
+	public static final String V2_COL_WIKI_ROOT_ID				= "ROOT_ID";
+	public static final String V2_COL_WIKI_MARKDOWN_VERSION		= "MARKDOWN_VERSION";
+	public static final String V2_DDL_FILE_WIKI_PAGE 			= "schema/v2-WikiPage-ddl.sql";
+	
+	// The wiki markdown table
+	public static final String V2_TABLE_WIKI_MARKDOWN				= "V2_WIKI_MARKDOWN";
+	public static final String V2_COL_WIKI_MARKDOWN_ID				= "WIKI_ID";
+	public static final String V2_COL_WIKI_MARKDOWN_FILE_HANDLE_ID 	= "FILE_HANDLE_ID";
+	public static final String V2_COL_WIKI_MARKDOWN_VERSION_NUM		= "MARKDOWN_VERSION";
+	public static final String V2_COL_WIKI_MARKDOWN_MODIFIED_ON		= "MODIFIED_ON";
+	public static final String V2_COL_WIKI_MARKDOWN_MODIFIED_BY		= "MODIFIED_BY";
+	public static final String V2_COL_WIKI_MARKDOWN_TITLE			= "TITLE";
+	public static final String V2_COL_WIKI_MARKDOWN_ATTACHMENT_ID_LIST	= "ATTACHMENT_ID_LIST";
+	public static final String V2_DDL_FILE_WIKI_MARKDOWN 			= "schema/v2-WikiMarkdown-ddl.sql";
+	
+	// The wiki attachments reservation table
+	public static final String V2_TABLE_WIKI_ATTACHMENT_RESERVATION					= "V2_WIKI_ATTACHMENT_RESERVATION";
+	public static final String V2_COL_WIKI_ATTACHMENT_RESERVATION_ID				= "WIKI_ID";
+	public static final String V2_COL_WIKI_ATTACHMENT_RESERVATION_FILE_HANDLE_ID	= "FILE_HANDLE_ID";
+	public static final String V2_COL_WIKI_ATTACHMENT_RESERVATION_TIMESTAMP 		= "TIME_STAMP";
+	public static final String V2_DDL_FILE_WIKI_ATTATCHMENT_RESERVATION				= "schema/v2-WikiAttachmentReservation-ddl.sql";
+
+	// The wiki owners table
+	public static final String V2_TABLE_WIKI_OWNERS						= "V2_WIKI_OWNERS";
+	public static final String V2_COL_WIKI_ONWERS_OWNER_ID				= "OWNER_ID";
+	public static final String V2_COL_WIKI_ONWERS_OBJECT_TYPE			= "OWNER_OBJECT_TYPE";
+	public static final String V2_COL_WIKI_ONWERS_ROOT_WIKI_ID			= "ROOT_WIKI_ID";
+	public static final String V2_DDL_FILE_WIKI_ONWERS					= "schema/v2-WikiOwners-ddl.sql";
 	
 	// The alias used for the dataset table.
 	public static final String NODE_ALIAS					= "nod";
@@ -364,6 +427,16 @@ public class SqlConstants {
 	public static final String COL_STORAGE_QUOTA_ETAG         = "ETAG";
 	public static final String COL_STORAGE_QUOTA_QUOTA_IN_MB  = "QUOTA_IN_MB";
 	public static final String DDL_FILE_STORAGE_QUOTA         ="schema/StorageQuota-ddl.sql";
+	
+	// Credential
+	public static final String TABLE_CREDENTIAL             = "CREDENTIAL";
+	public static final String COL_CREDENTIAL_PRINCIPAL_ID  = "PRINCIPAL_ID";
+	public static final String COL_CREDENTIAL_VALIDATED_ON  = "VALIDATED_ON";
+	public static final String COL_CREDENTIAL_SESSION_TOKEN = "SESSION_TOKEN";
+	public static final String COL_CREDENTIAL_PASS_HASH     = "PASS_HASH";
+	public static final String COL_CREDENTIAL_SECRET_KEY    = "SECRET_KEY";
+	public static final String COL_CREDENTIAL_TOU           = "AGREES_TO_TERMS_OF_USE";
+	public static final String DDL_CREDENTIAL               = "schema/Credential-ddl.sql";
 
 	// The Team table
 	public static final String TABLE_TEAM				= "TEAM";
@@ -376,7 +449,7 @@ public class SqlConstants {
 	// MembershipInvitation Table
 	public static final String TABLE_MEMBERSHIP_INVITATION_SUBMISSION	= "MEMBERSHIP_INVITATION_SUBMISSION";
 	public static final String COL_MEMBERSHIP_INVITATION_SUBMISSION_ID				= "ID";
-	public static final String COL_MEMBERSHIP_INVITATION_SUBMISSION_ETAG			= "ETAG";
+	public static final String COL_MEMBERSHIP_INVITATION_SUBMISSION_CREATED_ON		= "CREATED_ON";
 	public static final String COL_MEMBERSHIP_INVITATION_SUBMISSION_TEAM_ID			= "TEAM_ID";
 	public static final String COL_MEMBERSHIP_INVITATION_SUBMISSION_EXPIRES_ON		= "EXPIRES_ON";
 	public static final String COL_MEMBERSHIP_INVITATION_SUBMISSION_PROPERTIES		= "PROPERTIES";
@@ -391,7 +464,7 @@ public class SqlConstants {
 	// MembershipRequest Table
 	public static final String TABLE_MEMBERSHIP_REQUEST_SUBMISSION	= "MEMBERSHIP_REQUEST_SUBMISSION";
 	public static final String COL_MEMBERSHIP_REQUEST_SUBMISSION_ID				= "ID";
-	public static final String COL_MEMBERSHIP_REQUEST_SUBMISSION_ETAG			= "ETAG";
+	public static final String COL_MEMBERSHIP_REQUEST_SUBMISSION_CREATED_ON		= "CREATED_ON";
 	public static final String COL_MEMBERSHIP_REQUEST_SUBMISSION_TEAM_ID		= "TEAM_ID";
 	public static final String COL_MEMBERSHIP_REQUEST_SUBMISSION_USER_ID		= "USER_ID";
 	public static final String COL_MEMBERSHIP_REQUEST_SUBMISSION_EXPIRES_ON		= "EXPIRES_ON";

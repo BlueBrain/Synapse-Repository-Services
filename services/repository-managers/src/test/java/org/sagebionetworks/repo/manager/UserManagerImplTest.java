@@ -21,6 +21,7 @@ import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.dbo.dao.AuthorizationUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -69,9 +70,10 @@ public class UserManagerImplTest {
 	@Test
 	public void testGetAnonymous() throws Exception {
 		UserInfo ui = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
-		assertEquals(AuthorizationConstants.ANONYMOUS_USER_ID, ui.getUser().getUserId());
+		assertTrue(AuthorizationUtils.isUserAnonymous(ui));
+		assertTrue(AuthorizationUtils.isUserAnonymous(ui.getIndividualGroup()));
+		assertTrue(AuthorizationUtils.isUserAnonymous(ui.getUser().getUserId()));
 		assertNotNull(ui.getUser().getId());
-		assertEquals(AuthorizationConstants.ANONYMOUS_USER_ID, ui.getIndividualGroup().getName());
 		assertEquals(2, ui.getGroups().size());
 		assertTrue(ui.getGroups().contains(ui.getIndividualGroup()));
 		//assertEquals(ui.getIndividualGroup(), ui.getGroups().iterator().next());
@@ -115,8 +117,8 @@ public class UserManagerImplTest {
 	}
 	
 	/**
-	 * This test is extremely troublesome without the TestUserDAO in place
-	 * It can be reactivated once Crowd is removed
+	 * This test can be reactivated once the Named ID generator
+	 * supports a one-to-many mapping
 	 */
 	@Ignore 
 	@Test
@@ -127,12 +129,11 @@ public class UserManagerImplTest {
 		groupsToDelete.add(newEmail);
 		
 		// Create a user to change the email of
-		userManager.createPrincipal(oldEmail, true);
-		NewUser user = new NewUser();
-		user.setAcceptsTermsOfUse(true);
-		user.setEmail(oldEmail);
-		user.setPassword("foofoobarbar");
-		// userManager.createUser(user);
+		NewUser oldie = new NewUser();
+		oldie.setAcceptsTermsOfUse(true);
+		oldie.setEmail(oldEmail);
+		oldie.setPassword("foobar");
+		userManager.createUser(oldie);
 		
 		// Make sure the new user exists
 		UserInfo userInfo = userManager.getUserInfo(oldEmail);

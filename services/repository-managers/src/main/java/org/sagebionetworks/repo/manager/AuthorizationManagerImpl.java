@@ -12,12 +12,14 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ACTAccessApproval;
 import org.sagebionetworks.repo.model.AccessApproval;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
+import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ActivityDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Node;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestricableODUtil;
@@ -29,7 +31,7 @@ import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
-import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.dbo.dao.AuthorizationUtils;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,13 +56,15 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	private EvaluationPermissionsManager evaluationPermissionsManager;
 	@Autowired
 	private FileHandleDao fileHandleDao;
-
+	@Autowired
+	private AccessControlListDAO aclDAO;
+	
 	@Override
 	public boolean canAccess(UserInfo userInfo, String objectId, ObjectType objectType, ACCESS_TYPE accessType)
 			throws DatastoreException, NotFoundException {
 
 		// anonymous can at most READ
-		if (AuthorizationConstants.ANONYMOUS_USER_ID.equals(userInfo.getUser().getUserId())) {
+		if (AuthorizationUtils.isUserAnonymous(userInfo)) {
 			if (accessType != ACCESS_TYPE.READ) return false;
 		}
 
@@ -81,6 +85,12 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 				}
 				AccessApproval accessApproval = accessApprovalDAO.get(objectId);
 				return canAdminAccessApproval(userInfo, accessApproval);
+			case TEAM:
+				if (userInfo.isAdmin()) {
+					return true;
+				}
+				// just check the acl
+				return aclDAO.canAccess(userInfo.getGroups(), objectId, accessType);
 			default:
 				throw new IllegalArgumentException("Unknown ObjectType: "+objectType);
 		}
@@ -88,12 +98,6 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 
 	private static boolean isEvalOwner(UserInfo userInfo, Evaluation evaluation) {
 		return evaluation.getOwnerId().equals(userInfo.getIndividualGroup().getId());
-	}
-
-	@Override
-	public boolean canAccess(UserInfo userInfo, final String nodeId, ACCESS_TYPE accessType) 
-		throws NotFoundException, DatastoreException {
-		return canAccess(userInfo, nodeId, ObjectType.ENTITY, accessType);
 	}
 
 	@Override
@@ -106,7 +110,7 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 		if (parentId == null) {
 			return false;
 		}
-		return canAccess(userInfo, parentId, ACCESS_TYPE.CREATE);
+		return canAccess(userInfo, parentId, ObjectType.ENTITY, ACCESS_TYPE.CREATE);
 	}
 
 	@Override
@@ -133,7 +137,7 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 			for(Reference ref : generatedBy.getResults()) {
 				String nodeId = ref.getTargetId();
 				try {
-					if(canAccess(userInfo, nodeId, ACCESS_TYPE.READ)) {
+					if(canAccess(userInfo, nodeId, ObjectType. ENTITY, ACCESS_TYPE.READ)) {
 						return true;
 					}
 				} catch (Exception e) {
@@ -198,8 +202,8 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 		if (entityIds.size()==0) return false;
 		if (entityIds.size()>1) return false;
 		String entityId = entityIds.iterator().next();
-		if (!canAccess(userInfo, entityId, ACCESS_TYPE.CREATE) &&
-				!canAccess(userInfo, entityId, ACCESS_TYPE.UPDATE)) return false;
+		if (!canAccess(userInfo, entityId, ObjectType. ENTITY, ACCESS_TYPE.CREATE) &&
+				!canAccess(userInfo, entityId, ObjectType. ENTITY, ACCESS_TYPE.UPDATE)) return false;
 		return true;
 	}
 
@@ -279,5 +283,10 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 		}
 		return true;
 	}
-	
+
+	@Override
+	public boolean isAnonymousUser(UserInfo userInfo) {
+		if(userInfo == null) throw new IllegalArgumentException("UserInfo cannot be null");
+		return AuthorizationUtils.isUserAnonymous(userInfo);
+	}
 }

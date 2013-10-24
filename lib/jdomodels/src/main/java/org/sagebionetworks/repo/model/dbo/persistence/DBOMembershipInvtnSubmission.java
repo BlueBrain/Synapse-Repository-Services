@@ -1,12 +1,12 @@
 package org.sagebionetworks.repo.model.dbo.persistence;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_INVITATION_SUBMISSION_ETAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_INVITATION_SUBMISSION_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_INVITATION_SUBMISSION_EXPIRES_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_INVITATION_SUBMISSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_INVITATION_SUBMISSION_PROPERTIES;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_INVITATION_SUBMISSION_TEAM_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_MEMBERSHIP_INVITATION_SUBMISSION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_MEMBERSHIP_INVITATION_SUBMISSION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_MEMBERSHIP_INVITATION_SUBMISSION;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -28,14 +28,14 @@ public class DBOMembershipInvtnSubmission implements MigratableDatabaseObject<DB
 	
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("id", COL_MEMBERSHIP_INVITATION_SUBMISSION_ID, true).withIsBackupId(true),
-		new FieldColumn("etag", COL_MEMBERSHIP_INVITATION_SUBMISSION_ETAG).withIsEtag(true),
+		new FieldColumn("createdOn", COL_MEMBERSHIP_INVITATION_SUBMISSION_CREATED_ON),
 		new FieldColumn("teamId", COL_MEMBERSHIP_INVITATION_SUBMISSION_TEAM_ID),
 		new FieldColumn("expiresOn", COL_MEMBERSHIP_INVITATION_SUBMISSION_EXPIRES_ON),
 		new FieldColumn("properties", COL_MEMBERSHIP_INVITATION_SUBMISSION_PROPERTIES)
 	};
 	
 	private Long id;
-	private String etag;
+	private Long createdOn;
 	private Long teamId;
 	private Long expiresOn;
 	private byte[] properties;
@@ -47,10 +47,12 @@ public class DBOMembershipInvtnSubmission implements MigratableDatabaseObject<DB
 			public DBOMembershipInvtnSubmission mapRow(ResultSet rs, int rowNum) throws SQLException {
 				DBOMembershipInvtnSubmission team = new DBOMembershipInvtnSubmission();
 				team.setId(rs.getLong(COL_MEMBERSHIP_INVITATION_SUBMISSION_ID));
-				team.setEtag(rs.getString(COL_MEMBERSHIP_INVITATION_SUBMISSION_ETAG));
+				Long createdOn = rs.getLong(COL_MEMBERSHIP_INVITATION_SUBMISSION_CREATED_ON);
+				if (rs.wasNull()) createdOn=null;
+				team.setCreatedOn(createdOn);
 				team.setTeamId(rs.getLong(COL_MEMBERSHIP_INVITATION_SUBMISSION_TEAM_ID));
 				Long expiresOn = rs.getLong(COL_MEMBERSHIP_INVITATION_SUBMISSION_EXPIRES_ON);
-				if (expiresOn==0L) expiresOn=null;
+				if (rs.wasNull()) expiresOn=null;
 				team.setExpiresOn(expiresOn);
 
 				java.sql.Blob blob = rs.getBlob(COL_MEMBERSHIP_INVITATION_SUBMISSION_PROPERTIES);
@@ -96,15 +98,14 @@ public class DBOMembershipInvtnSubmission implements MigratableDatabaseObject<DB
 	}
 
 
-
-	public String getEtag() {
-		return etag;
+	public Long getCreatedOn() {
+		return createdOn;
 	}
 
 
 
-	public void setEtag(String etag) {
-		this.etag = etag;
+	public void setCreatedOn(Long createdOn) {
+		this.createdOn = createdOn;
 	}
 
 
@@ -187,7 +188,8 @@ public class DBOMembershipInvtnSubmission implements MigratableDatabaseObject<DB
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((etag == null) ? 0 : etag.hashCode());
+		result = prime * result
+				+ ((createdOn == null) ? 0 : createdOn.hashCode());
 		result = prime * result
 				+ ((expiresOn == null) ? 0 : expiresOn.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
@@ -207,10 +209,10 @@ public class DBOMembershipInvtnSubmission implements MigratableDatabaseObject<DB
 		if (getClass() != obj.getClass())
 			return false;
 		DBOMembershipInvtnSubmission other = (DBOMembershipInvtnSubmission) obj;
-		if (etag == null) {
-			if (other.etag != null)
+		if (createdOn == null) {
+			if (other.createdOn != null)
 				return false;
-		} else if (!etag.equals(other.etag))
+		} else if (!createdOn.equals(other.createdOn))
 			return false;
 		if (expiresOn == null) {
 			if (other.expiresOn != null)
@@ -236,7 +238,8 @@ public class DBOMembershipInvtnSubmission implements MigratableDatabaseObject<DB
 
 	@Override
 	public String toString() {
-		return "DBOTeam [id=" + id + ", etag=" + etag + ", properties="
-				+ Arrays.toString(properties) + "]";
+		return "DBOMembershipInvtnSubmission [id=" + id + ", createdOn="
+				+ createdOn + ", teamId=" + teamId + ", expiresOn=" + expiresOn
+				+ ", properties=" + Arrays.toString(properties) + "]";
 	}
 }

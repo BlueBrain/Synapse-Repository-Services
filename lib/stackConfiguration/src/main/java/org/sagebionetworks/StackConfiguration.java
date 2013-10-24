@@ -257,6 +257,20 @@ public class StackConfiguration {
 		return configuration
 				.getProperty("org.sagebionetworks.id.generator.database.driver");
 	}
+	
+	
+	public String getCrowdDatabaseConnectionUrl() {
+		return configuration
+				.getProperty("org.sagebionetworks.crowd.database.connection.url");
+	}
+	public String getCrowdDatabaseUsername() {
+		return configuration
+				.getDecryptedProperty("org.sagebionetworks.crowd.database.username");
+	}
+	public String getCrowdDatabasePassword() {
+		return configuration
+				.getDecryptedProperty("org.sagebionetworks.crowd.database.password");
+	}
 
 	/**
 	 * All of these keys are used to build up a map of JDO configurations passed
@@ -389,21 +403,21 @@ public class StackConfiguration {
 	}
 
 	/**
+	 * @return The API key of the migration admin
+	 */
+	public static String getMigrationAdminAPIKey() {
+		return configuration
+				.getDecryptedProperty("org.sagebionetworks.migration.admin.apikey");
+	}
+
+	/**
 	 * @return The name of a user for integration tests
 	 */
 	public static String getIntegrationTestUserOneName() {
 		return configuration
 				.getProperty("org.sagebionetworks.integration.test.username.one");
 	}
-
-	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestUserOneEmail() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.email.one");
-	}
-
+	
 	/**
 	 * @return The password of a user for integration tests
 	 */
@@ -434,14 +448,6 @@ public class StackConfiguration {
 	public static String getIntegrationTestUserThreeName() {
 		return configuration
 				.getProperty("org.sagebionetworks.integration.test.username.three");
-	}
-
-	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestUserThreeEmail() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.email.three");
 	}
 
 	/**
@@ -482,14 +488,6 @@ public class StackConfiguration {
 	public static String getIntegrationTestRejectTermsOfUseName() {
 		return configuration
 				.getProperty("org.sagebionetworks.integration.test.username.rejecttermsofuse");
-	}
-
-	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestRejectTermsOfUseEmail() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.email.rejecttermsofuse");
 	}
 
 	/**
@@ -594,14 +592,35 @@ public class StackConfiguration {
 	}
 
 	/**
-	 * The maximum number of pixels used for a preview image height and width
+	 * The maximum number of pixels used for a preview image width
 	 * 
 	 * @return
 	 */
-	public static int getMaximumPreivewPixels() {
+	public static int getMaximumPreviewWidthPixels() {
 		return Integer.valueOf(configuration
-				.getProperty("org.sagebionetworks.preview.image.max.pixels"));
+				.getProperty("org.sagebionetworks.preview.image.max.width.pixels"));
 	}
+	
+	/**
+	 * The maximum number of pixels used for a preview image height
+	 * 
+	 * @return
+	 */
+	public static int getMaximumPreviewHeightPixels() {
+		return Integer.valueOf(configuration
+				.getProperty("org.sagebionetworks.preview.image.max.height.pixels"));
+	}
+
+	/**
+	 * The maximum number of pixels used for an attachment image
+	 * 
+	 * @return
+	 */
+	public static int getMaximumAttachmentPreviewPixels() {
+		return Integer.valueOf(configuration
+				.getProperty("org.sagebionetworks.attachment.preview.image.max.pixels"));
+	}
+
 
 	/**
 	 * The S3 Bucket for backup file. This is shared across stacks to enable

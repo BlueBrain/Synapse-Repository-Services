@@ -69,8 +69,8 @@ public class DBOMembershipRqstSubmissionTest {
 			DBOBasicDao dboBasicDao) {
 		DBOMembershipRqstSubmission request = new DBOMembershipRqstSubmission();
 		request.setId(idGenerator.generateNewId());
+		request.setCreatedOn(System.currentTimeMillis());
 		request.setExpiresOn(System.currentTimeMillis());
-		request.setEtag("1");
 		DBOTeam team = DBOTeamTest.newTeam(userGroupDAO);
 		team = dboBasicDao.createNew(team);
 		request.setTeamId(team.getId());
@@ -98,7 +98,6 @@ public class DBOMembershipRqstSubmissionTest {
 		
 		// Make sure we can update it.
 		clone.setProperties(new byte[] { (byte)1 });
-		clone.setEtag("2");
 		boolean result = dboBasicDao.update(clone);
 		assertTrue(result);
 		

@@ -10,7 +10,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.DatabaseObject;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
-import org.sagebionetworks.repo.model.dbo.migration.MigatableTableDAO;
+import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAO;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.ListBucketProvider;
 import org.sagebionetworks.repo.model.migration.MigrationType;
@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MigrationManagerImpl implements MigrationManager {
 	
 	@Autowired
-	MigatableTableDAO migratableTableDao;
+	MigratableTableDAO migratableTableDao;
 
 	/**
 	 * The maximum size of a backup batch.
@@ -42,7 +42,7 @@ public class MigrationManagerImpl implements MigrationManager {
 	 * @param migratableTableDao
 	 * @param backupBatchMax
 	 */
-	public MigrationManagerImpl(MigatableTableDAO migratableTableDao, int backupBatchMax) {
+	public MigrationManagerImpl(MigratableTableDAO migratableTableDao, int backupBatchMax) {
 		super();
 		this.migratableTableDao = migratableTableDao;
 		this.backupBatchMax = backupBatchMax;
@@ -119,6 +119,15 @@ public class MigrationManagerImpl implements MigrationManager {
 	@Override
 	public int deleteObjectsById(UserInfo user, MigrationType type, List<Long> idList) {
 		validateUser(user);
+		// If this type has secondary types then delete them first
+		List<MigratableDatabaseObject> secondary = this.migratableTableDao.getObjectForType(type).getSecondaryTypes();
+		if(secondary != null){
+			for(int i=secondary.size()-1; i >= 0; i--){
+				MigrationType secondaryType = secondary.get(i).getMigratableTableType();
+				deleteObjectsById(user, secondaryType, idList);
+			}
+		}
+		
 		if(type == null) throw new IllegalArgumentException("Type cannot be null");
 		// Delete must be done in reverse dependency order, so we must get the row metadata for 
 		// the input list

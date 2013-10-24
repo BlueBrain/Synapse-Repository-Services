@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.model;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -30,8 +32,40 @@ public interface TeamDAO {
 	 * @param limit
 	 * 
 	 */
-	public List<Team> getInRange(long offset, long limit) throws DatastoreException;
+	public List<Team> getInRange(long limit, long offset) throws DatastoreException;
+	
+	/**
+	 * 
+	 * @return the number of teams in the system
+	 * @throws DatastoreException
+	 */
+	public long getCount() throws DatastoreException;
+	
+	/**
+	 * 
+	 * @param teamId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 * @throws DatastoreException
+	 */
+	public List<TeamMember> getMembersInRange(String teamId, long limit, long offset) throws DatastoreException;
+	
+	/**
+	 * 
+	 * @param teamId
+	 * @return
+	 * @throws DatastoreException
+	 */
+	public long getMembersCount(String teamId) throws DatastoreException;
 
+	/**
+	 * This is used to build up the team and member prefix caches
+	 * @return
+	 * @throws DatastoreException
+	 */
+	public Map<Team, Collection<TeamMember>> getAllTeamsAndMembers() throws DatastoreException;
+	
 	/**
 	 * Get the Teams a member belongs to
 	 * @param princialId the team member
@@ -40,10 +74,19 @@ public interface TeamDAO {
 	 * @return the Teams this principal belongs to
 	 * @throws DatastoreException 
 	 */
-	public List<Team> getForMemberInRange(String principalId, long offset, long limit) throws DatastoreException;
+	public List<Team> getForMemberInRange(String principalId, long limit, long offset) throws DatastoreException;
+	
+	/**
+	 * 
+	 * @param principalId
+	 * @return the number of teams the given member belongs to
+	 * @throws DatastoreException
+	 */
+	public long getCountForMember(String principalId) throws DatastoreException;
 	
 	/**
 	 * Updates the 'shallow' properties of an object.
+	 * Note:  leaving createdBy and createdOn null in the dto tells the DAO to use the currently stored values
 	 *
 	 * @param dto
 	 * @throws DatastoreException

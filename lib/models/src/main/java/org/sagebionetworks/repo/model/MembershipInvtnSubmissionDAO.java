@@ -33,7 +33,17 @@ public interface MembershipInvtnSubmissionDAO {
 	 * @param limit
 	 * 
 	 */
-	public List<MembershipInvitation> getOpenByUserInRange(long userId, long now, long offset, long limit) throws DatastoreException, NotFoundException;
+	public List<MembershipInvitation> getOpenByUserInRange(long userId, long now, long limit, long offset) throws DatastoreException, NotFoundException;
+
+	/**
+	 * 
+	 * @param userId
+	 * @param now
+	 * @return
+	 * @throws DatastoreException
+	 * @throws NotFoundException
+	 */
+	public long getOpenByUserCount(long userId, long now) throws DatastoreException, NotFoundException;
 
 	/**
 	 * Get the open (unexpired and unfulfilled) MembershipInvtnSubmissions received by the given user from a given team
@@ -45,7 +55,18 @@ public interface MembershipInvtnSubmissionDAO {
 	 * @param limit
 	 * 
 	 */
-	public List<MembershipInvitation> getOpenByTeamAndUserInRange(long teamId, long userId, long now, long offset, long limit) throws DatastoreException, NotFoundException;
+	public List<MembershipInvitation> getOpenByTeamAndUserInRange(long teamId, long userId, long now, long limit, long offset) throws DatastoreException, NotFoundException;
+
+	/**
+	 * 
+	 * @param teamId
+	 * @param userId
+	 * @param now
+	 * @return
+	 * @throws DatastoreException
+	 * @throws NotFoundException
+	 */
+	public long getOpenByTeamAndUserCount(long teamId, long userId, long now) throws DatastoreException, NotFoundException;
 
 	/**
 	 * delete the object given by the given ID

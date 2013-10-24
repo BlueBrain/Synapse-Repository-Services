@@ -22,6 +22,7 @@
 				<!-- DBOUserGroup must be declared before tables that have a foreign key to it -->
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOUserGroup" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOGroupMembers" />
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOCredential" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOGroupParentsCache" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBONodeType" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBONodeTypeAlias" />
@@ -50,6 +51,10 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOWikiPage" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOWikiAttachment" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOWikiOwner" />
+				<bean class="org.sagebionetworks.repo.model.dbo.v2.persistence.V2DBOWikiPage" />
+				<bean class="org.sagebionetworks.repo.model.dbo.v2.persistence.V2DBOWikiAttachmentReservation" />
+				<bean class="org.sagebionetworks.repo.model.dbo.v2.persistence.V2DBOWikiMarkdown" />
+				<bean class="org.sagebionetworks.repo.model.dbo.v2.persistence.V2DBOWikiOwner" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOFavorite" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBODoi" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOStorageQuota" />
@@ -70,8 +75,12 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMembershipInvtnSubmission" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMembershipRqstSubmission" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMembershipInvitee" />
+				<!-- Table -->
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.table.DBOColumnModel" />
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.table.DBOBoundColumn" />
 				<!-- misc -->
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOSentMessage" />
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOProcessedMessage" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOSemaphore" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOUploadDaemonStatus" />
 			</list>
@@ -79,8 +88,7 @@
 	</bean>
 
 	<!-- register for primary migration objects.  The order of this list determines migration order.-->
-	<bean id="migatableTableDAO" class="org.sagebionetworks.repo.model.dbo.migration.MigatableTableDAOImpl" init-method="initialize">
-		<property name="maxAllowedPacketBytes" ref="stackConfiguration.migrationMaxAllowedPacketBytes"/>
+	<bean id="migratableTableDAO" class="org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAOImpl" init-method="initialize">
 		<property name="databaseObjectRegister">
 			<list>
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOUserGroup" />
@@ -88,6 +96,8 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOWikiPage" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOWikiOwner" />
+				<bean class="org.sagebionetworks.repo.model.dbo.v2.persistence.V2DBOWikiPage" />
+				<bean class="org.sagebionetworks.repo.model.dbo.v2.persistence.V2DBOWikiOwner" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOActivity" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBONode" />
 				<bean class="org.sagebionetworks.evaluation.dbo.EvaluationDBO" />
@@ -106,8 +116,19 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMembershipInvtnSubmission" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMembershipRqstSubmission" />
 				
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.table.DBOColumnModel" />
+				
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOStorageQuota" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOChange" />
+			</list>
+		</property>
+		<!-- These are UserGroup row IDs that should not be deleted during migration -->
+		<property name="userGroupIdsExemptFromDeletion">
+			<list>
+				<value>1</value>
+				<value>2</value>
+				<value>273948</value>
+				<value>273949</value>
 			</list>
 		</property>
 	</bean>

@@ -8,17 +8,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.sagebionetworks.repo.model.ServiceConstants;
-import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
 import org.sagebionetworks.repo.model.Annotations;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Locationable;
 import org.sagebionetworks.repo.model.PrefixConst;
+import org.sagebionetworks.repo.model.ServiceConstants;
+import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
 import org.sagebionetworks.repo.model.Versionable;
 
 /**
@@ -530,7 +529,7 @@ public class UrlHelpers {
 	public static final String EVALUATION_ID_PATH_VAR_WITHOUT_BRACKETS = "evalId";
 	public static final String EVALUATION_ID_PATH_VAR = "{"+EVALUATION_ID_PATH_VAR_WITHOUT_BRACKETS+"}";
 	public static final String EVALUATION_WITH_ID = EVALUATION + "/" + EVALUATION_ID_PATH_VAR;
-	public static final String EVALUATION_WITH_CONTENT_SOURCE = EVALUATION + "/project/{projectId}";
+	public static final String EVALUATION_WITH_CONTENT_SOURCE = ENTITY_ID + EVALUATION;
 	public static final String EVALUATION_WITH_NAME = EVALUATION + "/name/{name}";
 	public static final String EVALUATION_COUNT = EVALUATION + "/count";
 	public static final String EVALUATION_AVAILABLE = EVALUATION+"/available";
@@ -583,8 +582,73 @@ public class UrlHelpers {
 	public static final String EVALUATION_WIKI_ID =EVALUATION_OWNER_ID + WIKI_WITH_ID;
 	public static final String EVALUATION_WIKI_ID_ATTCHMENT_HANDLE =EVALUATION_OWNER_ID + WIKI_WITH_ID+ATTACHMENT_HANDLES;
 	public static final String EVALUATION_WIKI_ID_ATTCHMENT_FILE =EVALUATION_OWNER_ID + WIKI_WITH_ID+ATTACHMENT;
-	public static final String EVALUATION_WIKI_ID_ATTCHMENT_FILE_PREVIEW =EVALUATION_OWNER_ID + WIKI_WITH_ID+ATTACHMENT_PREVIEW;
+	public static final String EVALUATION_WIKI_ID_ATTCHMENT_FILE_PREVIEW =EVALUATION_OWNER_ID + WIKI_WITH_ID+ATTACHMENT_PREVIEW;	
 
+	// V2 Wiki URL
+	public static final String WIKI_V2 = "/wiki2";
+	public static final String WIKI_HEADER_TREE_V2 = "/wikiheadertree2";
+	public static final String WIKI_HISTORY_V2 = "/wikihistory";
+	public static final String ATTACHMENT_V2 = "/attachment";
+	public static final String ATTACHMENT_PREVIEW_V2 = "/attachmentpreview";
+	public static final String ATTACHMENT_HANDLES_V2 = "/attachmenthandles";
+	public static final String WIKI_WITH_ID_V2 = WIKI_V2 + "/{wikiId}";
+	public static final String WIKI_VERSION_V2 = "/{wikiVersion}";
+	// Entity
+	public static final String ENTITY_OWNER_ID_V2 = ENTITY+"/{ownerId}";
+	public static final String ENTITY_WIKI_V2 = ENTITY_OWNER_ID_V2 + WIKI_V2;
+	public static final String ENTITY_WIKI_TREE_V2 = ENTITY_OWNER_ID_V2 + WIKI_HEADER_TREE_V2;
+	public static final String ENTITY_WIKI_ID_V2 = ENTITY_OWNER_ID_V2 + WIKI_WITH_ID_V2;
+	public static final String ENTITY_WIKI_ID_ATTCHMENT_HANDLE_V2 = ENTITY_OWNER_ID_V2 + WIKI_WITH_ID_V2+ATTACHMENT_HANDLES_V2;
+	public static final String ENTITY_WIKI_ID_ATTCHMENT_FILE_V2 = ENTITY_OWNER_ID_V2 + WIKI_WITH_ID_V2+ATTACHMENT_V2;
+	public static final String ENTITY_WIKI_ID_ATTCHMENT_FILE_PREVIEW_V2 = ENTITY_OWNER_ID_V2 + WIKI_WITH_ID_V2+ATTACHMENT_PREVIEW_V2;
+	public static final String ENTITY_WIKI_HISTORY_V2 = ENTITY_WIKI_ID_V2 + WIKI_HISTORY_V2;
+	public static final String ENTITY_WIKI_ID_AND_VERSION_V2 = ENTITY_OWNER_ID_V2+WIKI_WITH_ID_V2+WIKI_VERSION_V2;
+	// Evaluation
+	public static final String EVALUATION_OWNER_ID_V2 = EVALUATION+"/{ownerId}";
+	public static final String EVALUATION_WIKI_V2 = EVALUATION_OWNER_ID_V2+ WIKI_V2;
+	public static final String EVALUATION_WIKI_TREE_V2 = EVALUATION_OWNER_ID_V2 + WIKI_HEADER_TREE_V2;
+	public static final String EVALUATION_WIKI_ID_V2 =EVALUATION_OWNER_ID_V2 + WIKI_WITH_ID_V2;
+	public static final String EVALUATION_WIKI_ID_ATTCHMENT_HANDLE_V2 =EVALUATION_OWNER_ID_V2 + WIKI_WITH_ID_V2+ATTACHMENT_HANDLES_V2;
+	public static final String EVALUATION_WIKI_ID_ATTCHMENT_FILE_V2 =EVALUATION_OWNER_ID_V2 + WIKI_WITH_ID_V2+ATTACHMENT_V2;
+	public static final String EVALUATION_WIKI_ID_ATTCHMENT_FILE_PREVIEW_V2 =EVALUATION_OWNER_ID_V2 + WIKI_WITH_ID_V2+ATTACHMENT_PREVIEW_V2;
+	public static final String EVALUATION_WIKI_HISTORY_V2 = EVALUATION_WIKI_ID_V2 + WIKI_HISTORY_V2;
+	public static final String EVALUATION_WIKI_ID_AND_VERSION_V2 = EVALUATION_OWNER_ID_V2+WIKI_WITH_ID_V2+WIKI_VERSION_V2;
+	
+	// Tables
+	public static final String COLUMN = "/column";
+	public static final String COLUMN_ID = COLUMN+"/{columnId}";
+	public static final String ENTITY_COLUMNS = ENTITY_ID+COLUMN;
+	
+	// Team
+	public static final String TEAM = "/team";
+	public static final String TEAM_ID = TEAM+ID;
+	public static final String USER_TEAM = USER+ID+TEAM;
+	public static final String NAME_FRAGMENT_FILTER = "fragment";
+	public static final String TEAM_ID_ICON = TEAM_ID+"/icon";
+	private static final String MEMBER = "/member";
+	public static final String PRINCIPAL_ID_PATH_VARIABLE = "principalId";
+	public static final String PRINCIPAL_ID = "/{"+PRINCIPAL_ID_PATH_VARIABLE+"}";
+	public static final String TEAM_ID_MEMBER = TEAM_ID+MEMBER;
+	public static final String TEAM_ID_MEMBER_ID = TEAM_ID_MEMBER+PRINCIPAL_ID;
+	public static final String TEAM_ID_MEMBER_ID_PERMISSION = TEAM_ID_MEMBER+PRINCIPAL_ID+"/permission";
+	public static final String TEAM_PERMISSION_REQUEST_PARAMETER = "isAdmin";
+	public static final String TEAM_ID_MEMBER_ID_MEMBERSHIP_STATUS = TEAM_ID_MEMBER+PRINCIPAL_ID+"/membershipStatus";
+	public static final String TEAM_UPDATE_SEARCH_CACHE = "/updateTeamSearchCache";
+	// 	Team URIs for JSONP
+	public static final String TEAMS = "/teams";
+	public static final String TEAM_MEMBERS_ID = "/teamMembers"+ID;
+	
+	// membership invitation
+	public static final String MEMBERSHIP_INVITATION = "/membershipInvitation";
+	public static final String MEMBERSHIP_INVITATION_ID = MEMBERSHIP_INVITATION+ID;
+	public static final String OPEN_MEMBERSHIP_INVITATION = USER+ID+"/openInvitation";
+	public static final String TEAM_ID_REQUEST_PARAMETER = "teamId";
+	// membership request
+	public static final String MEMBERSHIP_REQUEST = "/membershipRequest";
+	public static final String MEMBERSHIP_REQUEST_ID = MEMBERSHIP_REQUEST+ID;
+	public static final String OPEN_MEMBERSHIP_REQUEST = TEAM_ID+"/openRequest";
+	public static final String REQUESTOR_ID_REQUEST_PARAMETER = "requestorId";
+	
 	/**
 	 * APIs for DynamoDB related operations.
 	 */
@@ -594,14 +658,27 @@ public class UrlHelpers {
 	 * API for clearing the specified dynamo table.
 	 */
 	public static final String ADMIN_DYNAMO_CLEAR_TABLE = ADMIN + DYNAMO + "/clear" + "/{tableName}";
-
+	
 	/**
-	 * This is a memoized cache for our URL regular expressions
+	 * Temporary API for migrating users from Crowd into RDS
 	 */
-	private static Map<Class, Pattern> MODEL2REGEX = new HashMap<Class, Pattern>();
+	public static final String ADMIN_MIGRATE_FROM_CROWD = ADMIN + "/crowdsync";
+	
+	// Authentication
+	public static final String AUTH_SESSION = "/session";
+	public static final String AUTH_SESSION_PORTAL = AUTH_SESSION + "/portal";
+	public static final String AUTH_USER = "/user";
+	public static final String AUTH_USER_PASSWORD_EMAIL = "/userPasswordEmail";
+	public static final String AUTH_API_PASSWORD_EMAIL = "/apiPasswordEmail";
+	public static final String AUTH_USER_PASSWORD = "/userPassword";
+	public static final String AUTH_CHANGE_EMAIL = "/changeEmail";
+	public static final String AUTH_REGISTERING_USER_PASSWORD = "/registeringUserPassword";
+	public static final String AUTH_SECRET_KEY = "/secretKey";
+	public static final String AUTH_OPEN_ID_CALLBACK = "/openIdCallback";
 
+	
 	static {
-
+		@SuppressWarnings("rawtypes")
 		Map<Class, String> property2urlsuffix = new HashMap<Class, String>();
 		property2urlsuffix.put(Annotations.class, ANNOTATIONS);
 		PROPERTY2URLSUFFIX = Collections.unmodifiableMap(property2urlsuffix);

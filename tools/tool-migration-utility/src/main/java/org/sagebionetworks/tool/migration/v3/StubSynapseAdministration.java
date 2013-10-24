@@ -49,11 +49,18 @@ import org.sagebionetworks.repo.model.EntityIdList;
 import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.LocationData;
 import org.sagebionetworks.repo.model.Locationable;
+import org.sagebionetworks.repo.model.MembershipInvitation;
+import org.sagebionetworks.repo.model.MembershipInvtnSubmission;
+import org.sagebionetworks.repo.model.MembershipRequest;
+import org.sagebionetworks.repo.model.MembershipRqstSubmission;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
+import org.sagebionetworks.repo.model.Team;
+import org.sagebionetworks.repo.model.TeamMember;
+import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.TrashedEntity;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
@@ -64,6 +71,8 @@ import org.sagebionetworks.repo.model.VersionInfo;
 import org.sagebionetworks.repo.model.attachment.AttachmentData;
 import org.sagebionetworks.repo.model.attachment.PresignedUrl;
 import org.sagebionetworks.repo.model.attachment.S3AttachmentToken;
+import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.daemon.BackupRestoreStatus;
 import org.sagebionetworks.repo.model.daemon.DaemonStatus;
@@ -83,6 +92,7 @@ import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.file.UploadDaemonStatus;
 import org.sagebionetworks.repo.model.message.FireMessagesResult;
+import org.sagebionetworks.repo.model.migration.CrowdMigrationResult;
 import org.sagebionetworks.repo.model.migration.IdList;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.repo.model.migration.MigrationTypeCount;
@@ -96,6 +106,8 @@ import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.repo.model.status.StatusEnum;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.versionInfo.SynapseVersionInfo;
 import org.sagebionetworks.repo.model.wiki.WikiHeader;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
@@ -125,6 +137,7 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 	List<Long> replayChangeNumbersHistory = new LinkedList<Long>();
 	List<Set<Long>> deleteRequestsHistory = new LinkedList<Set<Long>>();
 	Set<Long> exceptionNodes = new HashSet<Long>();
+	List<CrowdMigrationResult> crowdMigrationResults = new LinkedList<CrowdMigrationResult>();
 
 	/**
 	 * Create a new stub
@@ -293,16 +306,6 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 		return result;
 	}
 
-	private Long maxId(List<RowMetadata> vals) {
-		Long m = vals.get(0).getId();
-		for (RowMetadata v: vals) {
-			if (v.getId() > m) {
-				m = v.getId();
-			}
-		}
-		return m;
-	}
-
 	@Override
 	public MigrationTypeList getPrimaryTypes() throws SynapseException,
 			JSONObjectAdapterException {
@@ -460,6 +463,7 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 	 * @param req
 	 * @return
 	 */
+	@SuppressWarnings("unchecked")
 	private List<RowMetadata> readRestoreFile(RestoreSubmission req) {
 		try {
 			File placeHolder = File.createTempFile("notUsed", ".tmp");
@@ -840,13 +844,6 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 
 
 	@Override
-	public JSONObject getEntity(String uri) throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
 	public Entity getEntityByIdForVersion(String entityId, Long versionNumber)
 			throws SynapseException {
 		// TODO Auto-generated method stub
@@ -1050,6 +1047,13 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 
 
 	@Override
+	public JSONObject getEntity(String uri) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
 	public <T extends JSONEntity> T getEntity(String entityId,
 			Class<? extends T> clazz) throws SynapseException {
 		// TODO Auto-generated method stub
@@ -1065,43 +1069,13 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 
 
 	@Override
-	public JSONObject updateEntity(String uri, JSONObject entity)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
 	public <T extends Entity> T putEntity(T entity, String activityId)
 			throws SynapseException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
-
-	@Override
-	public JSONObject putJSONObject(String uri, JSONObject entity,
-			Map<String, String> headers) throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject postUri(String uri) throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public void deleteUri(String uri) throws SynapseException {
-		// TODO Auto-generated method stub
-		
-	}
-
-
+	
 	@Override
 	public <T extends Entity> void deleteEntity(T entity)
 			throws SynapseException {
@@ -1558,86 +1532,6 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 	public S3AttachmentToken createAttachmentS3Token(String id,
 			AttachmentType attachmentType, S3AttachmentToken token)
 			throws JSONObjectAdapterException, SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject createAuthEntity(String uri, JSONObject entity)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject getAuthEntity(String uri) throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject putAuthEntity(String uri, JSONObject entity)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject createJSONObjectEntity(String endpoint, String uri,
-			JSONObject entity) throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject getSynapseEntity(String endpoint, String uri)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject putJSONObject(String endpoint, String uri,
-			JSONObject entity, Map<String, String> headers)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject postUri(String endpoint, String uri)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public JSONObject querySynapse(String endpoint, String query)
-			throws SynapseException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
-	@Override
-	public void deleteUri(String endpoint, String uri) throws SynapseException {
-		// TODO Auto-generated method stub
-		
-	}
-
-
-	@Override
-	public <T extends JSONEntity> T getJSONEntity(String uri,
-			Class<? extends T> clazz) throws SynapseException,
-			JSONObjectAdapterException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -2122,6 +2016,284 @@ public class StubSynapseAdministration implements SynapseAdminClient {
 
 	@Override
 	public UserEvaluationPermissions getUserEvaluationPermissions(String evalId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public PaginatedResults<CrowdMigrationResult> migrateFromCrowd(long limit,
+			long offset) throws SynapseException, JSONObjectAdapterException {
+		PaginatedResults<CrowdMigrationResult> res = new PaginatedResults<CrowdMigrationResult>();
+		res.setTotalNumberOfResults(this.crowdMigrationResults.size());
+		res.setResults(this.crowdMigrationResults);
+		return res;
+	}
+
+
+	public void setCrowdMigrationResults(List<CrowdMigrationResult> crowdMigResults) {
+		this.crowdMigrationResults = crowdMigResults;
+	}
+
+
+	@Override
+	public ColumnModel createColumnModel(ColumnModel model)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public ColumnModel getColumnModel(String columnId) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public Team createTeam(Team team) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public Team getTeam(String id) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public PaginatedResults<Team> getTeams(String fragment, long limit,
+			long offset) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public PaginatedResults<Team> getTeamsForUser(String memberId, long limit,
+			long offset) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public URL getTeamIcon(String teamId, Boolean redirect)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public Team updateTeam(Team team) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public void deleteTeam(String teamId) throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void addTeamMember(String teamId, String memberId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public PaginatedResults<TeamMember> getTeamMembers(String teamId, String fragment,
+			long limit, long offset) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public void removeTeamMember(String teamId, String memberId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public MembershipInvtnSubmission createMembershipInvitation(
+			MembershipInvtnSubmission invitation) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public MembershipInvtnSubmission getMembershipInvitation(String invitationId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public PaginatedResults<MembershipInvitation> getOpenMembershipInvitations(
+			String memberId, String teamId, long limit, long offset)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public void deleteMembershipInvitation(String invitationId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public MembershipRqstSubmission createMembershipRequest(
+			MembershipRqstSubmission request) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public MembershipRqstSubmission getMembershipRequest(String requestId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public PaginatedResults<MembershipRequest> getOpenMembershipRequests(
+			String teamId, String requestorId, long limit, long offset)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public void deleteMembershipRequest(String requestId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void setTeamMemberPermissions(String teamId, String memberId,
+			boolean isAdmin) throws SynapseException {
+		// TODO Auto-generated method stub
+	}
+
+	public List<ColumnModel> getColumnModelsForTableEntity(String tableEntityId)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public TeamMembershipStatus getTeamMembershipStatus(String teamId,
+			String principalId) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
+	public PaginatedColumnModels listColumnModels(String prefix, Long limit,
+			Long offset) throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void updateTeamSearchCache() throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void logout() throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void invalidateApiKey() throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void createUser(NewUser user) throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public NewUser getAuthUserInfo() throws SynapseException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public void changePassword(String newPassword) throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void changePassword(String sessionToken, String newPassword)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void changeEmail(String sessionToken, String newPassword)
+			throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void sendPasswordResetEmail() throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void sendPasswordResetEmail(String email) throws SynapseException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public Session passThroughOpenIDParameters(String queryString, Boolean acceptsTermsOfUse)
 			throws SynapseException {
 		// TODO Auto-generated method stub
 		return null;

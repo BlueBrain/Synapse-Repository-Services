@@ -64,6 +64,11 @@
 			<property name="isIndividual" value="true" />
 		</bean>
 		<bean class="org.sagebionetworks.repo.model.UserGroup">
+			<property name="id" value="2" />
+			<property name="name" value="Administrators" />
+			<property name="isIndividual" value="false" />
+		</bean>
+		<bean class="org.sagebionetworks.repo.model.UserGroup">
 			<property name="id" value="273948" />
 			<property name="name" value="AUTHENTICATED_USERS" />
 			<property name="isIndividual" value="false" />
@@ -78,11 +83,6 @@
 			<property name="name" value="anonymous@sagebase.org" />
 			<property name="isIndividual" value="true" />
 		</bean>
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
-			<property name="id" value="273954" />
-			<property name="name" value="prodUserAdmin@sagebase.org" />
-			<property name="isIndividual" value="true" />
-		</bean>
 	</util:list>
 
 	<bean id="userGroupDAO"
@@ -95,11 +95,15 @@
 		depends-on="userGroupDAO" 
 		init-method="bootstrapProfiles" />
 	
-	<bean id="crowdGroupMembersDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.CrowdGroupMembersDAO" />
-	
 	<bean id="groupMembersDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOGroupMembersDAOImpl" />
+		class="org.sagebionetworks.repo.model.dbo.dao.DBOGroupMembersDAOImpl"
+		depends-on="userGroupDAO" 
+		init-method="bootstrapGroups" />
+		
+	<bean id="authDAO"
+		class="org.sagebionetworks.repo.model.dbo.dao.DBOAuthenticationDAOImpl"
+		depends-on="userGroupDAO"
+		init-method="bootstrapCredentials" />
 
 	<bean id="accessRequirementDAO"
 		class="org.sagebionetworks.repo.model.dbo.dao.DBOAccessRequirementDAOImpl" />
@@ -147,6 +151,11 @@
 		class="org.sagebionetworks.repo.model.dbo.dao.DBOWikiPageDaoImpl"
 		scope="singleton">
 	</bean>
+	
+	<bean id="v2wikiPageDAO"
+		class="org.sagebionetworks.repo.model.dbo.v2.dao.V2DBOWikiPageDaoImpl"
+		scope="singleton">
+	</bean>
 
 	<bean id="doiDao" class="org.sagebionetworks.repo.model.dbo.dao.DBODoiDaoImpl"
 		scope="singleton">
@@ -164,6 +173,11 @@
 
 	<bean id="storageQuotaAdminDao"
 		class="org.sagebionetworks.repo.model.dbo.dao.StorageQuotaAdminDaoImpl"
+		scope="singleton">
+	</bean>
+	
+	<bean id="columnModelDao"
+		class="org.sagebionetworks.repo.model.dbo.dao.DBOColumnModelDAOImpl"
 		scope="singleton">
 	</bean>
 
@@ -225,5 +239,8 @@
 	<!-- Misc beans -->
 	<bean id="semaphoreDao"
 		class="org.sagebionetworks.repo.model.dbo.dao.semaphore.DBOSemaphoreDaoImpl" />
+		
+	<bean id="crowdMigrationDAO"
+		class="org.sagebionetworks.repo.model.dbo.dao.DBOCrowdMigrationDAO" />
 
 </beans>

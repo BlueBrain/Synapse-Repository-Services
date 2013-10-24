@@ -153,11 +153,8 @@
 		scope="singleton" />
 
 	<bean id="userManager" class="org.sagebionetworks.repo.manager.UserManagerImpl" />
-
-	<bean id="userDAO" class="org.sagebionetworks.repo.util.UserDAOProxy"
-		scope="singleton" />
-	<bean id="userDAOImpl" class="org.sagebionetworks.authutil.CrowdUserDAO"
-		scope="singleton" />
+		
+	<bean id="authManager" class="org.sagebionetworks.repo.manager.AuthenticationManagerImpl" />
 	
 	<bean id="backupDriver" class="org.sagebionetworks.repo.manager.backup.daemon.BackupDriverImpl" scope="singleton"/>
 	
@@ -207,6 +204,9 @@
 
 	<bean id="wikiManager" class="org.sagebionetworks.repo.manager.wiki.WikiManagerImpl" 
 		scope="singleton" />
+		
+	<bean id="v2WikiManager" class="org.sagebionetworks.repo.manager.wiki.V2WikiManagerImpl" 
+		scope="singleton" />
 
 	<bean id="entityDoiManager" class="org.sagebionetworks.repo.manager.doi.EntityDoiManagerImpl" 
 		scope="singleton" />
@@ -218,6 +218,9 @@
 		scope="singleton" />
 
 	<bean id="nodeTreeQueryManager" class="org.sagebionetworks.repo.manager.dynamo.NodeTreeQueryManagerImpl"
+		scope="singleton" />
+
+	<bean id="columnModelManager" class="org.sagebionetworks.repo.manager.table.ColumnModelManagerImpl"
 		scope="singleton" />
 
 	<bean id="nodeTreeUpdateManager" class="org.sagebionetworks.repo.manager.dynamo.NodeTreeUpdateManagerImpl">
@@ -272,4 +275,8 @@
 		class="org.sagebionetworks.repo.util.jrjc.JiraClientImpl"
 		scope="singleton" />
 
+	<bean id="teamManager" class="org.sagebionetworks.repo.manager.team.TeamManagerImpl" scope="singleton" />
+	<bean id="membershipInvitationManager" class="org.sagebionetworks.repo.manager.team.MembershipInvitationManagerImpl" scope="singleton" />
+	<bean id="membershipRequestManager" class="org.sagebionetworks.repo.manager.team.MembershipRequestManagerImpl" scope="singleton" />
+			
 </beans>

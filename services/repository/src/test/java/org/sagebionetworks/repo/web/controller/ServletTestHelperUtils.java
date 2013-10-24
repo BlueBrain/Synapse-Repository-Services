@@ -148,6 +148,19 @@ public class ServletTestHelperUtils {
 		String json = JSONEntityHttpMessageConverter.readToString(reader);
 		return new JSONObjectAdapterImpl(json);
 	}
+	
+	/**
+	 * Read a JSONEntity from the response
+	 * @param response
+	 * @param clazz
+	 * @return
+	 * @throws Exception
+	 */
+	public static <T extends JSONEntity> T readResponse(MockHttpServletResponse response, Class<? extends T> clazz) throws Exception {
+		StringReader reader = new StringReader(response.getContentAsString());
+		String json = JSONEntityHttpMessageConverter.readToString(reader);
+		return EntityFactory.createEntityFromJSONString(json, clazz);
+	}
 
 	/**
 	 * Extracts the JSON content of a HTTP response and parses it into a set of
@@ -183,6 +196,14 @@ public class ServletTestHelperUtils {
 	public static String createWikiURI(WikiPageKey key) {
 		return "/" + key.getOwnerObjectType().name().toLowerCase() + "/"
 				+ key.getOwnerObjectId() + "/wiki/" + key.getWikiPageId();
+	}
+	
+	/**
+	 * Simple helper for creating a URI for a V2WikiPage using its key
+	 */
+	public static String createV2WikiURI(WikiPageKey key) {
+		return "/" + key.getOwnerObjectType().name().toLowerCase() + "/"
+				+ key.getOwnerObjectId() + "/wiki2/" + key.getWikiPageId();
 	}
 
 	/**

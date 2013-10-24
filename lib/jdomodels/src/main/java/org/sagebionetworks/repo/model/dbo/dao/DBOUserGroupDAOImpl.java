@@ -25,10 +25,11 @@ import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
-import org.sagebionetworks.repo.model.dbo.persistence.DBOGroupParentsCache;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOCredential;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOUserGroup;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.securitytools.HMACUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -40,8 +41,10 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 
 	@Autowired
 	private DBOBasicDao basicDao;
+	
 	@Autowired
-	private NamedIdGenerator idGenerator;	
+	private NamedIdGenerator idGenerator;
+	
 	@Autowired
 	private SimpleJdbcTemplate simpleJdbcTemplate;
 	
@@ -236,6 +239,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	}
 
 	@Override
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	public boolean deletePrincipal(String name) {
 		try {
 			DBOUserGroup ug = findGroup(name);
@@ -250,6 +254,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	}
 
 	@Override
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	public String create(UserGroup dto) throws DatastoreException,
 			InvalidModelException {
 		DBOUserGroup dbo = new DBOUserGroup();
@@ -257,25 +262,30 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		
 		// If the create is successful, it should have a new etag
 		dbo.setEtag(UUID.randomUUID().toString());
-		if(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME.equals(dto.getName())){
+		if (AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME.equals(dto.getName())) {
 			// This is a special hack since the auto-generated ID column cannot
 			// start at zero yet the BOOTSTRAP_USER_GROUP_NAME was assigned to zero long ago.
 			dbo.setId(0l);
-		}else{
-			// we allow the ID generator to create all other IDs
+		} else {
+			// We allow the ID generator to create all other IDs
 			dbo.setId(idGenerator.generateNewId(dto.getName(), NamedType.USER_GROUP_ID));
 		}
 		try {
 			dbo = basicDao.createNew(dbo);
-			
-			// Also create a row for the parents cache
-			DBOGroupParentsCache cacheDBO = new DBOGroupParentsCache();
-			cacheDBO.setGroupId(dbo.getId());
-			basicDao.createNew(cacheDBO);
-			return dbo.getId().toString();
 		} catch (Exception e) {
-			throw new DatastoreException("id="+dbo.getId()+" name="+dto.getName(), e);
+			throw new DatastoreException("id=" + dbo.getId() + " name="+dto.getName(), e);
 		}
+		
+		Boolean isIndividual = dbo.getIsIndividual();
+		if (isIndividual != null && isIndividual.booleanValue()) {
+			// Create a row for the authentication DAO
+			DBOCredential credDBO = new DBOCredential();
+			credDBO.setPrincipalId(dbo.getId());
+			credDBO.setSecretKey(HMACUtils.newHMACSHA1Key());
+			basicDao.createNew(credDBO);
+		}
+		
+		return dbo.getId().toString();
 	}
 
 	public boolean doesIdExist(Long id) {
@@ -346,25 +356,35 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		param.addValue(ID_PARAM_NAME, id);
 		basicDao.deleteObjectByPrimaryKey(DBOUserGroup.class, param);
 	}
-
-	// initialization of UserGroups
+	
+	/**
+	 * This is called by Spring after all properties are set
+	 */
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	public void bootstrapUsers() throws Exception {
 		// Boot strap all users and groups
-		if(this.bootstrapUsers == null) throw new IllegalArgumentException("bootstrapUsers cannot be null");
+		if (this.bootstrapUsers == null) {
+			throw new IllegalArgumentException("bootstrapUsers cannot be null");
+		}
+		
 		// For each one determine if it exists, if not create it
-		for(UserGroupInt ug: this.bootstrapUsers){
-			if(ug.getId() == null) throw new IllegalArgumentException("Bootstrap users must have an id");
-			if(ug.getName() == null) throw new IllegalArgumentException("Bootstrap users must have a name");
+		for (UserGroupInt ug: this.bootstrapUsers) {
+			if (ug.getId() == null) {
+				throw new IllegalArgumentException("Bootstrap users must have an id");
+			}
+			if (ug.getName() == null) {
+				throw new IllegalArgumentException("Bootstrap users must have a name");
+			}
+			
 			Long id = Long.parseLong(ug.getId());
-			if(!this.doesIdExist(id)){
+			if (!this.doesIdExist(id)) {
 				UserGroup newUg = new UserGroup();
 				newUg.setId(ug.getId());
 				newUg.setName(ug.getName());
 				newUg.setIsIndividual(ug.getIsIndividual());
 				// Make sure the ID generator has reserved this ID.
-				if(!AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME.equals(ug.getName())){
+				if (!AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME.equals(ug.getName())) {
 					// We cannot do this for the BOOTSTRAP_USER_GROUP because its ID is zero which is
 					// the same a null for MySQL auto-increment columns
 					idGenerator.unconditionallyAssignIdToName(id, ug.getName(), NamedType.USER_GROUP_ID);
@@ -376,12 +396,11 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		// A few additional users are required for testing
 		if (!StackConfiguration.isProductionStack()) {
 			String testUsers[] = new String[]{ 
-					AuthorizationConstants.ADMIN_GROUP_NAME, 
 					StackConfiguration.getIntegrationTestUserAdminName(), 
-					StackConfiguration.getIntegrationTestRejectTermsOfUseEmail(), 
-					StackConfiguration.getIntegrationTestUserOneEmail(), 
+					StackConfiguration.getIntegrationTestRejectTermsOfUseName(), 
+					StackConfiguration.getIntegrationTestUserOneName(), 
 					StackConfiguration.getIntegrationTestUserTwoName(), 
-					StackConfiguration.getIntegrationTestUserThreeEmail(), 
+					StackConfiguration.getIntegrationTestUserThreeName(), 
 					AuthorizationConstants.ADMIN_USER_NAME, 
 					AuthorizationConstants.TEST_GROUP_NAME, 
 					AuthorizationConstants.TEST_USER_NAME };
@@ -389,8 +408,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 				if (!this.doesPrincipalExist(username)) {
 					UserGroup ug = new UserGroup();
 					ug.setName(username);
-					ug.setIsIndividual(!username.equals(AuthorizationConstants.ADMIN_GROUP_NAME) 
-							&& !username.equals(AuthorizationConstants.TEST_GROUP_NAME));
+					ug.setIsIndividual(!username.equals(AuthorizationConstants.TEST_GROUP_NAME));
 					ug.setId(this.create(ug));
 				}
 				UserGroup ug = new UserGroup();

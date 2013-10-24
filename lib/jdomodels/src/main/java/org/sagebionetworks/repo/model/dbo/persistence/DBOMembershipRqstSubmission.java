@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.model.dbo.persistence;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_REQUEST_SUBMISSION_ETAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_REQUEST_SUBMISSION_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_REQUEST_SUBMISSION_EXPIRES_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_REQUEST_SUBMISSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_MEMBERSHIP_REQUEST_SUBMISSION_PROPERTIES;
@@ -28,7 +28,7 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 	
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("id", COL_MEMBERSHIP_REQUEST_SUBMISSION_ID, true).withIsBackupId(true),
-		new FieldColumn("etag", COL_MEMBERSHIP_REQUEST_SUBMISSION_ETAG).withIsEtag(true),
+		new FieldColumn("createdOn", COL_MEMBERSHIP_REQUEST_SUBMISSION_CREATED_ON),
 		new FieldColumn("teamId", COL_MEMBERSHIP_REQUEST_SUBMISSION_TEAM_ID),
 		new FieldColumn("userId", COL_MEMBERSHIP_REQUEST_SUBMISSION_USER_ID),
 		new FieldColumn("expiresOn", COL_MEMBERSHIP_REQUEST_SUBMISSION_EXPIRES_ON),
@@ -36,7 +36,7 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 	};
 	
 	private Long id;
-	private String etag;
+	private Long createdOn;
 	private Long teamId;
 	private Long userId;
 	private Long expiresOn;
@@ -47,20 +47,22 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 		return new TableMapping<DBOMembershipRqstSubmission>(){
 			@Override
 			public DBOMembershipRqstSubmission mapRow(ResultSet rs, int rowNum) throws SQLException {
-				DBOMembershipRqstSubmission team = new DBOMembershipRqstSubmission();
-				team.setId(rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_ID));
-				team.setEtag(rs.getString(COL_MEMBERSHIP_REQUEST_SUBMISSION_ETAG));
-				team.setTeamId(rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_TEAM_ID));
-				team.setUserId(rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_USER_ID));
+				DBOMembershipRqstSubmission mrs = new DBOMembershipRqstSubmission();
+				mrs.setId(rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_ID));
+				Long createdOn = rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_CREATED_ON);
+				if (rs.wasNull()) createdOn=null;
+				mrs.setCreatedOn(createdOn);
+				mrs.setTeamId(rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_TEAM_ID));
+				mrs.setUserId(rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_USER_ID));
 				Long expiresOn = rs.getLong(COL_MEMBERSHIP_REQUEST_SUBMISSION_EXPIRES_ON);
-				if (expiresOn==0L) expiresOn=null;
-				team.setExpiresOn(expiresOn);
+				if (rs.wasNull()) expiresOn=null;
+				mrs.setExpiresOn(expiresOn);
 
 				java.sql.Blob blob = rs.getBlob(COL_MEMBERSHIP_REQUEST_SUBMISSION_PROPERTIES);
 				if(blob != null){
-					team.setProperties(blob.getBytes(1, (int) blob.length()));
+					mrs.setProperties(blob.getBytes(1, (int) blob.length()));
 				}
-				return team;
+				return mrs;
 			}
 
 			@Override
@@ -99,17 +101,15 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 	}
 
 
-
-	public String getEtag() {
-		return etag;
+	public Long getCreatedOn() {
+		return createdOn;
 	}
 
 
 
-	public void setEtag(String etag) {
-		this.etag = etag;
+	public void setCreatedOn(Long createdOn) {
+		this.createdOn = createdOn;
 	}
-
 
 
 	public byte[] getProperties() {
@@ -200,7 +200,8 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((etag == null) ? 0 : etag.hashCode());
+		result = prime * result
+				+ ((createdOn == null) ? 0 : createdOn.hashCode());
 		result = prime * result
 				+ ((expiresOn == null) ? 0 : expiresOn.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
@@ -221,10 +222,10 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 		if (getClass() != obj.getClass())
 			return false;
 		DBOMembershipRqstSubmission other = (DBOMembershipRqstSubmission) obj;
-		if (etag == null) {
-			if (other.etag != null)
+		if (createdOn == null) {
+			if (other.createdOn != null)
 				return false;
-		} else if (!etag.equals(other.etag))
+		} else if (!createdOn.equals(other.createdOn))
 			return false;
 		if (expiresOn == null) {
 			if (other.expiresOn != null)
@@ -255,9 +256,9 @@ public class DBOMembershipRqstSubmission implements MigratableDatabaseObject<DBO
 
 	@Override
 	public String toString() {
-		return "DBOMembershipRqstSubmission [id=" + id + ", etag=" + etag
-				+ ", teamId=" + teamId + ", userId=" + userId + ", expiresOn="
-				+ expiresOn + ", properties=" + Arrays.toString(properties)
-				+ "]";
+		return "DBOMembershipRqstSubmission [id=" + id + ", createdOn="
+				+ createdOn + ", teamId=" + teamId + ", userId=" + userId
+				+ ", expiresOn=" + expiresOn + ", properties="
+				+ Arrays.toString(properties) + "]";
 	}
 }

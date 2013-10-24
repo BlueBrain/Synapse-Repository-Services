@@ -17,6 +17,7 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -54,7 +55,7 @@ public class EvaluationManagerImpl implements EvaluationManager {
 			throw new IllegalArgumentException("Evaluation " + eval.getId() +
 					" is missing content source (are you sure there is Synapse entity for it?).");
 		}
-		if (!authorizationManager.canAccess(userInfo, nodeId, ACCESS_TYPE.CREATE)) {
+		if (!authorizationManager.canAccess(userInfo, nodeId, ObjectType. ENTITY, ACCESS_TYPE.CREATE)) {
 			throw new UnauthorizedException("User " + userInfo.getIndividualGroup().getId() +
 					" must have " + ACCESS_TYPE.CREATE.name() + " right on the entity " +
 					nodeId + " in order to create a evaluation based on it.");
@@ -86,21 +87,21 @@ public class EvaluationManagerImpl implements EvaluationManager {
 	}
 	
 	@Override
-	public QueryResults<Evaluation> getEvaluationByContentSource(UserInfo userInfo, String projectId, long limit, long offset)
+	public QueryResults<Evaluation> getEvaluationByContentSource(UserInfo userInfo, String id, long limit, long offset)
 			throws DatastoreException, NotFoundException {
-		EvaluationUtils.ensureNotNull(projectId, "Project ID");
+		EvaluationUtils.ensureNotNull(id, "Entity ID");
 		if (userInfo == null) {
 			throw new IllegalArgumentException("User info cannot be null.");
 		}
 		
-		List<Evaluation> evalList = evaluationDAO.getByContentSource(projectId, limit, offset);
+		List<Evaluation> evalList = evaluationDAO.getByContentSource(id, limit, offset);
 		List<Evaluation> evaluations = new ArrayList<Evaluation>();
 		for (Evaluation eval : evalList) {
 			if (evaluationPermissionsManager.hasAccess(userInfo, eval.getId(), ACCESS_TYPE.READ)) {
 				evaluations.add(eval);
 			}
 		}
-		long totalNumberOfResults = evaluationDAO.getCountByContentSource(projectId);
+		long totalNumberOfResults = evaluationDAO.getCountByContentSource(id);
 		return new QueryResults<Evaluation>(evaluations, totalNumberOfResults);
 	}
 
