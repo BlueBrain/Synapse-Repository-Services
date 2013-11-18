@@ -20,7 +20,9 @@ import org.junit.Test;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.SynapseClientImpl;
 import org.sagebionetworks.client.exceptions.SynapseNotFoundException;
+import org.sagebionetworks.client.exceptions.SynapseTermsOfUseException;
 import org.sagebionetworks.client.exceptions.SynapseUnauthorizedException;
+import org.sagebionetworks.client.exceptions.SynapseUserException;
 import org.sagebionetworks.repo.model.auth.NewUser;
 
 public class IT990AuthenticationController {
@@ -60,7 +62,7 @@ public class IT990AuthenticationController {
 		synapse.login(username, "incorrectPassword");
 	}
 	
-	@Test(expected = SynapseUnauthorizedException.class)
+	@Test(expected = SynapseTermsOfUseException.class)
 	public void testCreateSessionNoTermsOfUse() throws Exception {
 		String username = StackConfiguration.getIntegrationTestRejectTermsOfUseName();
 		String password = StackConfiguration.getIntegrationTestRejectTermsOfUsePassword();
@@ -86,7 +88,7 @@ public class IT990AuthenticationController {
 		assertNull(synapse.getCurrentSessionToken());
 	}
 	
-	@Test(expected = SynapseUnauthorizedException.class)
+	@Test
 	public void testCreateExistingUser() throws Exception {
 		NewUser user = new NewUser();
 		user.setEmail(username);
@@ -94,7 +96,11 @@ public class IT990AuthenticationController {
 		user.setLastName("usr");
 		user.setDisplayName("dev usr");
 		
-		synapse.createUser(user);
+		try {
+			synapse.createUser(user);
+		} catch (SynapseUserException e) {
+			assertTrue(e.getMessage().contains("409"));
+		}
 	}
 	
 	
@@ -117,9 +123,7 @@ public class IT990AuthenticationController {
 		try {
 			synapse.login(username, password);
 			fail();
-		} catch (SynapseUnauthorizedException e) { 
-			assertTrue(e.getMessage().contains("Terms of Use"));
-		}
+		} catch (SynapseTermsOfUseException e) { }
 		
 		// Now accept the terms and get a session token
 		synapse.login(username, password, true);
@@ -170,6 +174,12 @@ public class IT990AuthenticationController {
 		
 		// Restore original password
 		synapse.changePassword(password);
+	}
+	
+	@Test
+	public void testResendPasswordEmail() throws Exception {
+		// Note: non-production stacks do not send emails, but instead print a log message
+		synapse.resendPasswordEmail(username);
 	}
 	
 	@Test
@@ -287,7 +297,7 @@ public class IT990AuthenticationController {
 	@Test
 	public void testOpenIDCallback() throws Exception {
 		try {
-			synapse.passThroughOpenIDParameters("", null);
+			synapse.passThroughOpenIDParameters("org.sagebionetworks.openid.provider=GOOGLE");
 			fail();
 		} catch (SynapseUnauthorizedException e) {
 			assertTrue(e.getMessage().contains("Required parameter missing"));

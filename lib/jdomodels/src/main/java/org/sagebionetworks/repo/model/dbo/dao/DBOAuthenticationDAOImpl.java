@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.securitytools.HMACUtils;
 import org.sagebionetworks.securitytools.PBKDF2Utils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,10 +84,12 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 					SqlConstants.COL_CREDENTIAL_SESSION_TOKEN+"=NULL"+
 			" WHERE "+SqlConstants.COL_CREDENTIAL_SESSION_TOKEN+"=:"+TOKEN_PARAM_NAME;
 	
-	private static final String SELECT_PRINCIPAL_BY_TOKEN_IF_VALID = 
+	private static final String SELECT_PRINCIPAL_BY_TOKEN = 
 			"SELECT "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+" FROM "+SqlConstants.TABLE_CREDENTIAL+
-			" WHERE "+SqlConstants.COL_CREDENTIAL_SESSION_TOKEN+"=:"+TOKEN_PARAM_NAME+
-				IF_VALID_SUFFIX;
+			" WHERE "+SqlConstants.COL_CREDENTIAL_SESSION_TOKEN+"=:"+TOKEN_PARAM_NAME;
+	
+	private static final String SELECT_PRINCIPAL_BY_TOKEN_IF_VALID = 
+			SELECT_PRINCIPAL_BY_TOKEN+IF_VALID_SUFFIX;
 	
 	private static final String SELECT_PASSWORD = 
 			"SELECT "+SqlConstants.COL_CREDENTIAL_PASS_HASH+
@@ -147,6 +150,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public void revalidateSessionToken(String principalId) {
+		userGroupDAO.touch(principalId);
+		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, principalId);
 		param.addValue(TIME_PARAM_NAME, new Date());
@@ -156,6 +161,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public String changeSessionToken(String principalId, String sessionToken) {
+		userGroupDAO.touch(principalId);
+		
 		if (sessionToken == null) {
 			sessionToken = UUID.randomUUID().toString();
 		}
@@ -171,9 +178,14 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 
 	@Override
 	public Session getSessionTokenIfValid(String username) {
+		return getSessionTokenIfValid(username, new Date());
+	}
+	
+	@Override
+	public Session getSessionTokenIfValid(String username, Date now) {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(EMAIL_PARAM_NAME, username);
-		param.addValue(TIME_PARAM_NAME, new Date(new Date().getTime() - SESSION_EXPIRATION_TIME));
+		param.addValue(TIME_PARAM_NAME, new Date(now.getTime() - SESSION_EXPIRATION_TIME));
 		try {
 			return simpleJdbcTemplate.queryForObject(SELECT_SESSION_TOKEN_BY_USERNAME_IF_VALID, 
 					sessionRowMapper, param);
@@ -185,13 +197,29 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public void deleteSessionToken(String sessionToken) {
+		Long principalId = getPrincipal(sessionToken);
+		if (principalId != null) {
+			userGroupDAO.touch(principalId.toString());
+		}
+		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(TOKEN_PARAM_NAME, sessionToken);
 		simpleJdbcTemplate.update(NULLIFY_SESSION_TOKEN, param);
 	}
+
+	@Override
+	public Long getPrincipal(String sessionToken) {
+		MapSqlParameterSource param = new MapSqlParameterSource();
+		param.addValue(TOKEN_PARAM_NAME, sessionToken);
+		
+		try {
+			return simpleJdbcTemplate.queryForLong(SELECT_PRINCIPAL_BY_TOKEN, param); 
+		} catch (EmptyResultDataAccessException e) {
+			return null;
+		}
+	}
 	
 	@Override
-	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public Long getPrincipalIfValid(String sessionToken) {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(TOKEN_PARAM_NAME, sessionToken);
@@ -205,10 +233,15 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	}
 	
 	@Override
-	public byte[] getPasswordSalt(String username) {
+	public byte[] getPasswordSalt(String username) throws NotFoundException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(EMAIL_PARAM_NAME, username);
-		String passHash = simpleJdbcTemplate.queryForObject(SELECT_PASSWORD, String.class, param);
+		String passHash;
+		try {
+			passHash = simpleJdbcTemplate.queryForObject(SELECT_PASSWORD, String.class, param);
+		} catch (EmptyResultDataAccessException e) {
+			throw new NotFoundException("User (" + username + ") does not exist");
+		}
 		if (passHash == null) {
 			return null;
 		}
@@ -218,6 +251,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public void changePassword(String id, String passHash) {
+		userGroupDAO.touch(id);
+		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, id);
 		param.addValue(PASSWORD_PARAM_NAME, passHash);
@@ -240,6 +275,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public void changeSecretKey(String id, String secretKey) {
+		userGroupDAO.touch(id);
+		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, id);
 		param.addValue(TOKEN_PARAM_NAME, secretKey);
@@ -260,6 +297,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public void setTermsOfUseAcceptance(String id, Boolean acceptance) {
+		userGroupDAO.touch(id);
+		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, id);
 		param.addValue(TOU_PARAM_NAME, acceptance);

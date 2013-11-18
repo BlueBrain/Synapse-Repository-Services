@@ -1,13 +1,7 @@
 package org.sagebionetworks.auth.services;
 
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-import java.util.List;
-import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.openid4java.message.ParameterList;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.authutil.OpenIDConsumerUtils;
@@ -15,12 +9,13 @@ import org.sagebionetworks.authutil.OpenIDInfo;
 import org.sagebionetworks.authutil.SendMail;
 import org.sagebionetworks.repo.manager.AuthenticationManager;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.UserProfileManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.ServiceConstants;
+import org.sagebionetworks.repo.model.NameConflictException;
+import org.sagebionetworks.repo.model.OriginatingClient;
+import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.LoginCredentials;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.RegistrationInfo;
 import org.sagebionetworks.repo.model.auth.Session;
@@ -31,50 +26,57 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 public class AuthenticationServiceImpl implements AuthenticationService {
-	
-	private static Log log = LogFactory.getLog(AuthenticationServiceImpl.class);
 
 	@Autowired
 	private UserManager userManager;
-
-	@Autowired
-	private UserProfileManager userProfileManager;
 	
 	@Autowired
 	private AuthenticationManager authManager;
 	
 	public AuthenticationServiceImpl() {}
 	
-	public AuthenticationServiceImpl(UserManager userManager, UserProfileManager userProfileManager, AuthenticationManager authManager) {
+	public AuthenticationServiceImpl(UserManager userManager, AuthenticationManager authManager) {
 		this.userManager = userManager;
-		this.userProfileManager = userProfileManager;
 		this.authManager = authManager;
 	}
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public Session authenticate(NewUser credential) throws NotFoundException {
+	public Session authenticate(LoginCredentials credential) throws NotFoundException {
 		if (credential.getEmail() == null) {
 			throw new UnauthorizedException("Username may not be null");
 		}
 		
 		// Fetch the user's session token
-			if (credential.getPassword() == null) {
-				throw new UnauthorizedException("Password may not be null");
-			}
+		if (credential.getPassword() == null) {
+			throw new UnauthorizedException("Password may not be null");
+		}
 		Session session = authManager.authenticate(credential.getEmail(), credential.getPassword());
 		
 		// Only hand back the session token if ToU has been accepted
 		handleTermsOfUse(credential.getEmail(), credential.getAcceptsTermsOfUse());
 		return session;
 	}
+
+	@Override
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
+	public String revalidate(String sessionToken) 
+			throws NotFoundException, UnauthorizedException, TermsOfUseException {
+		return revalidate(sessionToken, true);
+	}
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public String revalidate(String sessionToken) throws NotFoundException {
-		Long userId = authManager.checkSessionToken(sessionToken);
-		if (!hasUserAcceptedTermsOfUse(userId.toString())) {
-			throw new UnauthorizedException(ServiceConstants.TERMS_OF_USE_ERROR_MESSAGE);
+	public String revalidate(String sessionToken, boolean checkToU) 
+			throws NotFoundException, UnauthorizedException, TermsOfUseException {
+		Long userId;
+		try {
+			userId = authManager.checkSessionToken(sessionToken);
+		} catch (TermsOfUseException e) {
+			if (checkToU) {
+				throw e;
+			}
+			userId = authManager.getPrincipalId(sessionToken);
 		}
 		return userId.toString();
 	}
@@ -98,15 +100,12 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void createUser(NewUser user) throws UnauthorizedException {
+	public void createUser(NewUser user) throws UnauthorizedException, NameConflictException {
 		if (user == null || user.getEmail() == null) {
 			throw new IllegalArgumentException("Required fields are missing for user creation");
 		}
-		try {
-			userManager.createUser(user);
-		} catch (DatastoreException e) {
-			throw new UnauthorizedException("User '" + user.getEmail() + "' already exists", e);
-		}
+		
+		userManager.createUser(user);
 		
 		// For integration test to confirm that a user can be created
 		if (!StackConfiguration.isProductionStack()) {
@@ -129,7 +128,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void changePassword(String username, String newPassword) throws NotFoundException, NoSuchAlgorithmException, InvalidKeySpecException {
+	public void changePassword(String username, String newPassword) throws NotFoundException {
 		if (username == null) {
 			throw new IllegalArgumentException("Username may not be null");
 		}
@@ -143,7 +142,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void updateEmail(String oldEmail, RegistrationInfo registrationInfo) throws NotFoundException, NoSuchAlgorithmException, InvalidKeySpecException {
+	public void updateEmail(String oldEmail, RegistrationInfo registrationInfo) throws NotFoundException {
 		// User must be logged in to make this request
 		if (oldEmail == null) {
 			throw new UnauthorizedException("Not authorized");
@@ -201,8 +200,16 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
 	@Override
 	public void sendUserPasswordEmail(String username, PW_MODE mode) throws NotFoundException {
+		sendUserPasswordEmail(username, mode, OriginatingClient.SYNAPSE);
+	}
+	
+	@Override
+	public void sendUserPasswordEmail(String username, PW_MODE mode, OriginatingClient originClient) throws NotFoundException {
 		if (username == null) {
 			throw new IllegalArgumentException("Username may not be null");
+		}
+		if (originClient == null) {
+			throw new IllegalArgumentException("OriginatingClient may not be null");
 		}
 		
 		// Get the user's info and session token (which is refreshed)
@@ -217,16 +224,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		mailTarget.setFirstName(user.getUser().getFname());
 		mailTarget.setLastName(user.getUser().getLname());
 		
-		// Don't spam emails for integration tests
-		if (!StackConfiguration.isProductionStack()) {
-			log.debug("Prevented " + mode + " email from being sent to " + mailTarget + " with session token " + sessionToken);
-			return;
-		}
-		
-		SendMail sendMail = new SendMail();
+		SendMail sendMail = new SendMail(originClient);
 		switch (mode) {
 			case SET_PW:
-				sendMail.sendSetPasswordMail(mailTarget, sessionToken);
+				sendMail.sendSetPasswordMail(mailTarget, AuthorizationConstants.REGISTRATION_TOKEN_PREFIX + sessionToken);
 				break;
 			case RESET_PW:
 				sendMail.sendResetPasswordMail(mailTarget, sessionToken);
@@ -243,7 +244,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	 * Note: Could be made into a public service sometime in the future
 	 * @param acceptsTermsOfUse Will check stored data on user if set to null or false
 	 */
-	private void handleTermsOfUse(String username, Boolean acceptsTermsOfUse) throws NotFoundException, UnauthorizedException {
+	private void handleTermsOfUse(String username, Boolean acceptsTermsOfUse) 
+			throws NotFoundException, TermsOfUseException {
 		UserInfo userInfo = userManager.getUserInfo(username);
 		
 		// The ToU field might not be explicitly specified or false
@@ -253,7 +255,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		
 		// Check for ToU acceptance
 		if (!acceptsTermsOfUse) {
-			throw new UnauthorizedException(ServiceConstants.TERMS_OF_USE_ERROR_MESSAGE);
+			throw new TermsOfUseException();
 		}
 		
 		// If the user is accepting the terms in this request, save the time of acceptance
@@ -278,46 +280,64 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		}
 		
 		// Dig out a ToU boolean from the request
+		// Defaults to false
 		String toUParam = parameters.getParameterValue(OpenIDInfo.ACCEPTS_TERMS_OF_USE_PARAM_NAME);
-		Boolean acceptsTermsOfUse = new Boolean(toUParam);
+		boolean acceptsTermsOfUse = new Boolean(toUParam);
 		
-		return processOpenIDInfo(openIDInfo, acceptsTermsOfUse);
+		// Dig out a createUser boolean from the request
+		// Defaults to false
+		String createParam = parameters.getParameterValue(OpenIDInfo.CREATE_USER_IF_NECESSARY_PARAM_NAME);
+		boolean shouldCreateUser = new Boolean(createParam);
+		
+		String originClientParam = parameters.getParameterValue(OpenIDInfo.ORIGINATING_CLIENT_PARAM_NAME);
+		OriginatingClient originClient = OriginatingClient.getClientFromOriginClientParam(originClientParam);
+		
+		return processOpenIDInfo(openIDInfo, acceptsTermsOfUse, shouldCreateUser, originClient);
+	}
+	
+	protected Session processOpenIDInfo(OpenIDInfo info, Boolean acceptsTermsOfUse, Boolean createUserIffNecessary) throws NotFoundException {
+		return processOpenIDInfo(info, acceptsTermsOfUse, createUserIffNecessary, OriginatingClient.SYNAPSE);
 	}
 	
 	/**
 	 * Returns the session token of the user described by the OpenID information
 	 */
-	protected Session processOpenIDInfo(OpenIDInfo info, Boolean acceptsTermsOfUse) throws NotFoundException {
+	protected Session processOpenIDInfo(OpenIDInfo info, Boolean acceptsTermsOfUse, Boolean createUserIffNecessary,
+			OriginatingClient originClient) throws NotFoundException {
 		// Get some info about the user
-		Map<String, List<String>> mappings = info.getMap();
-		List<String> emails = mappings.get(OpenIDConsumerUtils.AX_EMAIL);
-		List<String> fnames = mappings.get(OpenIDConsumerUtils.AX_FIRST_NAME);
-		List<String> lnames = mappings.get(OpenIDConsumerUtils.AX_LAST_NAME);
-		String email = (emails == null || emails.size() < 1 ? null : emails.get(0));
-		String fname = (fnames == null || fnames.size() < 1 ? null : fnames.get(0));
-		String lname = (lnames == null || lnames.size() < 1 ? null : lnames.get(0));
-
+		String email = info.getEmail();
+		String fname = info.getFirstName();
+		String lname = info.getLastName();
+		String fullName = info.getFullName();
 		if (email == null) {
-			throw new UnauthorizedException("Unable to authenticate");
+			throw new UnauthorizedException("An email must be returned from the OpenID provider");
+		}
+		if (originClient == null) {
+			throw new IllegalArgumentException("OriginatingClient may not be null");
 		}
 		
 		if (!userManager.doesPrincipalExist(email)) {
-			// A new user must be created
-			NewUser user = new NewUser();
-			user.setEmail(email);
-			user.setFirstName(fname);
-			user.setLastName(lname);
-			if (fname != null && lname != null) {
-				user.setDisplayName(fname + " " + lname);
+			if (createUserIffNecessary) {
+				// A new user must be created
+				NewUser user = new NewUser();
+				user.setEmail(email);
+				user.setFirstName(fname);
+				user.setLastName(lname);
+				user.setDisplayName(fullName);
+				userManager.createUser(user);
+				
+				SendMail sendMail = new SendMail(originClient);
+				sendMail.sendWelcomeMail(user);
+			} else {
+				throw new NotFoundException(email);
 			}
-			userManager.createUser(user);
 		}
 		
 		// The user does not need to accept the terms of use to get a session token via OpenID
 		//TODO This should not be the case
 		try {
 			handleTermsOfUse(email, acceptsTermsOfUse);
-		} catch (UnauthorizedException e) { }
+		} catch (TermsOfUseException e) { }
 		
 		// Open ID is successful
 		return authManager.authenticate(email, null);

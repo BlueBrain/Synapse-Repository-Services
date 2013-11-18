@@ -1,11 +1,12 @@
 package org.sagebionetworks.auth.services;
 
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-
 import org.openid4java.message.ParameterList;
+import org.sagebionetworks.repo.model.NameConflictException;
+import org.sagebionetworks.repo.model.OriginatingClient;
+import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.LoginCredentials;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.RegistrationInfo;
 import org.sagebionetworks.repo.model.auth.Session;
@@ -25,14 +26,22 @@ public interface AuthenticationService {
 	 * Authenticates a user/password combination, returning a session token if valid
 	 * @throws UnauthorizedException If the credentials are incorrect
 	 */
-	public Session authenticate(NewUser credential) throws NotFoundException, UnauthorizedException;
+	public Session authenticate(LoginCredentials credential) throws NotFoundException, UnauthorizedException, TermsOfUseException;
 	
 	/**
-	 * Revalidates a session token and checks whether the user has accepted the terms of use
+	 * Revalidates a session token and checks if the user has accepted the terms of use
 	 * @return The principalId of the user holding the token
 	 * @throws UnauthorizedException If the token has expired or is otherwise not valid
 	 */
-	public String revalidate(String sessionToken) throws NotFoundException, UnauthorizedException;
+	public String revalidate(String sessionToken) throws NotFoundException, UnauthorizedException, TermsOfUseException;
+	
+	/**
+	 * Revalidates a session token
+	 * @param checkToU Should the check fail if the user has not accepted the terms of use?
+	 * @return The principalId of the user holding the token
+	 * @throws UnauthorizedException If the token has expired or is otherwise not valid
+	 */
+	public String revalidate(String sessionToken, boolean checkToU) throws NotFoundException, UnauthorizedException, TermsOfUseException;
 	
 	/**
 	 * Invalidates a session token
@@ -50,7 +59,7 @@ public interface AuthenticationService {
 	 * @throws UnauthorizedException If a user with the supplied email already exists 
 	 */
 	public void createUser(NewUser user)
-			throws UnauthorizedException;
+			throws UnauthorizedException, NameConflictException;
 	
 	/**
 	 * Returns information on the user
@@ -62,14 +71,14 @@ public interface AuthenticationService {
 	 * Changes the password of the user
 	 */
 	public void changePassword(String username, String newPassword)
-			throws NotFoundException, NoSuchAlgorithmException, InvalidKeySpecException;
+			throws NotFoundException;
 	
 	/**
 	 * Changes the email of a user to another email
 	 * Simultaneously changes the user's password
 	 */
 	public void updateEmail(String oldEmail, RegistrationInfo registrationInfo)
-			throws NotFoundException, NoSuchAlgorithmException, InvalidKeySpecException;
+			throws NotFoundException;
 	
 	/**
 	 * Gets the current secret key of the user
@@ -101,13 +110,19 @@ public interface AuthenticationService {
 	public String getUsername(String principalId)
 			throws NotFoundException;
 	
+	/**
+	 * Sends a password-related email to the user
+	 * This method assumes that the required authentication has passed for the user
+	 * Note: Should only send emails in Production stacks (instead log where emails would have been sent)
+	 */
+	public void sendUserPasswordEmail(String username, PW_MODE mode) throws NotFoundException;
 	
 	/**
 	 * Sends a password-related email to the user
 	 * This method assumes that the required authentication has passed for the user
 	 * Note: Should only send emails in Production stacks (instead log where emails would have been sent)
 	 */
-	public void sendUserPasswordEmail(String username, PW_MODE mode)
+	public void sendUserPasswordEmail(String username, PW_MODE mode, OriginatingClient originClient)
 			 throws NotFoundException;
 	
 	/**

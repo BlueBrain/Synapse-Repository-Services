@@ -1,6 +1,9 @@
 package org.sagebionetworks.repo.model;
 
+import java.util.Date;
+
 import org.sagebionetworks.repo.model.auth.Session;
+import org.sagebionetworks.repo.web.NotFoundException;
 
 /**
  * Note: These methods assume that all users have a row in the appropriate table, 
@@ -35,6 +38,12 @@ public interface AuthenticationDAO {
 	 * It is the caller's responsibility to make sure the token does not go into unauthorized hands
 	 */
 	public Session getSessionTokenIfValid(String username);
+
+	/**
+	 * For testing purposes only
+	 * Allows the current time to be spoofed for testing purposes
+	 */
+	public Session getSessionTokenIfValid(String username, Date now);
 	
 	/**
 	 * Nullifies the session token
@@ -43,6 +52,12 @@ public interface AuthenticationDAO {
 	
 	/**
 	 * Looks for the given session token
+	 * @return The principal ID of the holder
+	 */
+	public Long getPrincipal(String sessionToken);
+	
+	/**
+	 * Looks for the given valid session token
 	 * @return The principal ID of the holder, or null if the token is invalid
 	 */
 	public Long getPrincipalIfValid(String sessionToken);
@@ -50,7 +65,7 @@ public interface AuthenticationDAO {
 	/**
 	 * Returns the salt used to hash the user's password
 	 */
-	public byte[] getPasswordSalt(String username);
+	public byte[] getPasswordSalt(String username) throws NotFoundException;
 	
 	/**
 	 * Changes a user's password
@@ -69,9 +84,7 @@ public interface AuthenticationDAO {
 	
 	/**
 	 * Replaces the user's secret key with the specified one
-	 * This method should only be used by the CrowdMigratorService
 	 */
-	@Deprecated
 	public void changeSecretKey(String id, String secretKey);
 	
 	/**

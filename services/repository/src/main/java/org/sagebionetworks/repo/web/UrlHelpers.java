@@ -616,8 +616,10 @@ public class UrlHelpers {
 	
 	// Tables
 	public static final String COLUMN = "/column";
+	public static final String TABLE = "/table";
 	public static final String COLUMN_ID = COLUMN+"/{columnId}";
 	public static final String ENTITY_COLUMNS = ENTITY_ID+COLUMN;
+	public static final String ENTITY_TABLE = ENTITY_ID+TABLE;
 	
 	// Team
 	public static final String TEAM = "/team";
@@ -638,6 +640,10 @@ public class UrlHelpers {
 	public static final String TEAMS = "/teams";
 	public static final String TEAM_MEMBERS_ID = "/teamMembers"+ID;
 	
+	public static final String ACCESS_REQUIREMENT_WITH_TEAM_ID = TEAM_ID+ACCESS_REQUIREMENT;
+	public static final String TEAM_ACCESS_REQUIREMENT_UNFULFILLED_WITH_ID = TEAM_ID+"/accessRequirementUnfulfilled";
+	public static final String ACCESS_APPROVAL_WITH_TEAM_ID = TEAM_ID+ACCESS_APPROVAL;
+
 	// membership invitation
 	public static final String MEMBERSHIP_INVITATION = "/membershipInvitation";
 	public static final String MEMBERSHIP_INVITATION_ID = MEMBERSHIP_INVITATION+ID;
@@ -660,14 +666,15 @@ public class UrlHelpers {
 	public static final String ADMIN_DYNAMO_CLEAR_TABLE = ADMIN + DYNAMO + "/clear" + "/{tableName}";
 	
 	/**
-	 * Temporary API for migrating users from Crowd into RDS
+	 * Temporary API to migrate wiki pages from V1 to V2
 	 */
-	public static final String ADMIN_MIGRATE_FROM_CROWD = ADMIN + "/crowdsync";
+	public static final String ADMIN_MIGRATE_WIKI = ADMIN + "/migrateWiki";
 	
 	// Authentication
 	public static final String AUTH_SESSION = "/session";
 	public static final String AUTH_SESSION_PORTAL = AUTH_SESSION + "/portal";
 	public static final String AUTH_USER = "/user";
+	public static final String AUTH_REGISTERING_USER_EMAIL = "/registeringUserEmail";
 	public static final String AUTH_USER_PASSWORD_EMAIL = "/userPasswordEmail";
 	public static final String AUTH_API_PASSWORD_EMAIL = "/apiPasswordEmail";
 	public static final String AUTH_USER_PASSWORD = "/userPassword";

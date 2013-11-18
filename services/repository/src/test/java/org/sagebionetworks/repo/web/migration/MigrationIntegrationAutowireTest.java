@@ -39,7 +39,7 @@ import org.sagebionetworks.repo.model.AccessApproval;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
+import org.sagebionetworks.repo.model.CommentDAO;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Favorite;
 import org.sagebionetworks.repo.model.FileEntity;
@@ -49,6 +49,7 @@ import org.sagebionetworks.repo.model.MembershipInvtnSubmission;
 import org.sagebionetworks.repo.model.MembershipInvtnSubmissionDAO;
 import org.sagebionetworks.repo.model.MembershipRqstSubmission;
 import org.sagebionetworks.repo.model.MembershipRqstSubmissionDAO;
+import org.sagebionetworks.repo.model.MessageDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
@@ -66,12 +67,17 @@ import org.sagebionetworks.repo.model.daemon.BackupRestoreStatus;
 import org.sagebionetworks.repo.model.daemon.DaemonStatus;
 import org.sagebionetworks.repo.model.daemon.RestoreSubmission;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
+import org.sagebionetworks.repo.model.dao.WikiPageDao;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.dao.table.ColumnModelDAO;
+import org.sagebionetworks.repo.model.dao.table.TableRowTruthDAO;
+import org.sagebionetworks.repo.model.dbo.dao.table.TableModelUtils;
 import org.sagebionetworks.repo.model.doi.Doi;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.PreviewFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.message.Comment;
+import org.sagebionetworks.repo.model.message.MessageToUser;
 import org.sagebionetworks.repo.model.migration.IdList;
 import org.sagebionetworks.repo.model.migration.ListBucketProvider;
 import org.sagebionetworks.repo.model.migration.MigrationType;
@@ -83,7 +89,8 @@ import org.sagebionetworks.repo.model.migration.RowMetadata;
 import org.sagebionetworks.repo.model.migration.RowMetadataResult;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.model.table.ColumnModel;
-import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.RowSet;
 import org.sagebionetworks.repo.model.v2.dao.V2WikiPageDao;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiPage;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
@@ -157,6 +164,12 @@ public class MigrationIntegrationAutowireTest {
 
 	@Autowired
 	private AuthenticationDAO authDAO;
+	
+	@Autowired
+	private MessageDAO messageDAO;
+	
+	@Autowired
+	private CommentDAO commentDAO;
 
 	@Autowired
 	private MembershipRqstSubmissionDAO membershipRqstSubmissionDAO;
@@ -166,8 +179,15 @@ public class MigrationIntegrationAutowireTest {
 	
 	@Autowired
 	private ColumnModelDAO columnModelDao;
+	
 	@Autowired
-	private V2WikiPageDao wikiPageDao;
+	private TableRowTruthDAO tableRowTruthDao;
+	
+	@Autowired
+	private V2WikiPageDao v2wikiPageDAO;
+	
+	@Autowired
+	private WikiPageDao wikiPageDAO;
 
 	UserInfo userInfo;
 	private String userName;
@@ -217,11 +237,6 @@ public class MigrationIntegrationAutowireTest {
 	// Favorite
 	Favorite favorite;
 	
-	ColumnModel columnModel;
-	
-	// UserGroups 
-	List<UserGroup> nonVitalUserGroups;
-	
 	HttpServletRequest mockRequest;
 	
 	@Before
@@ -233,7 +248,7 @@ public class MigrationIntegrationAutowireTest {
 		userInfo = userManager.getUserInfo(userName);
 		adminId = userInfo.getIndividualGroup().getId();
 		resetDatabase();
-		createFileHandles();
+		String sampleFileHandleId = createFileHandles();
 		createActivity();
 		createEntities();
 		createFavorite();
@@ -247,23 +262,44 @@ public class MigrationIntegrationAutowireTest {
 		UserGroup sampleGroup = createUserGroups();
 		createTeamsRequestsAndInvitations(sampleGroup);
 		createCredentials(sampleGroup);
+		createMessages(sampleGroup, sampleFileHandleId);
 		createColumnModel();
 	}
 
 
-	private void createColumnModel() throws DatastoreException, NotFoundException {
-		columnModel = new ColumnModel();
-		columnModel.setName("MigrationTest");
-		columnModel.setColumnType(ColumnType.STRING);
-		columnModel = columnModelDao.createColumnModel(columnModel);
-		// bind this column to an entity.
-		Set<String> toBind = new HashSet<String>();
-		toBind.add(columnModel.getId());
-		columnModelDao.bindColumnToObject(toBind, "syn123");
+	private void createColumnModel() throws DatastoreException, NotFoundException, IOException {
+		String tableId = "syn123";
+		// Create some test column models
+		List<ColumnModel> start = TableModelUtils.createOneOfEachType();
+		// Create each one
+		List<ColumnModel> models = new LinkedList<ColumnModel>();
+		for(ColumnModel cm: start){
+			models.add(columnModelDao.createColumnModel(cm));
+		}
+
+		List<String> header = TableModelUtils.getHeaders(models);
+		// bind the columns to the entity
+		Set<String> toBind = new HashSet<String>(header);
+		columnModelDao.bindColumnToObject(toBind, tableId);
+
+		// create some test rows.
+		List<Row> rows = TableModelUtils.createRows(models, 5);
+		RowSet set = new RowSet();
+		set.setHeaders(TableModelUtils.getHeaders(models));
+		set.setRows(rows);
+		set.setTableId(tableId);
+		// Append the rows to the table
+		tableRowTruthDao.appendRowSetToTable(adminId, tableId, models, set);
+		// Append some more rows
+		rows = TableModelUtils.createRows(models, 6);
+		set.setRows(rows);
+		tableRowTruthDao.appendRowSetToTable(adminId, tableId, models, set);
 	}
 
 
 	private void resetDatabase() throws Exception {
+		// This gives us a chance to also delete the S3 for table rows
+		tableRowTruthDao.truncateAllRowData();
 		// Before we start this test we want to start with a clean database
 		migrationManager.deleteAllData(userInfo);
 		// bootstrap to put back the bootstrap data
@@ -357,6 +393,9 @@ public class MigrationIntegrationAutowireTest {
 
 
 	public void creatWikiPages() throws Exception {
+		// Using the DAO to bypass the bridge that translates wiki pages
+		// to V2 wiki pages from the service.
+		
 		wikiToDelete = new LinkedList<WikiPageKey>();
 		// Create a wiki page
 		rootWiki = new WikiPage();
@@ -364,7 +403,11 @@ public class MigrationIntegrationAutowireTest {
 		rootWiki.getAttachmentFileHandleIds().add(handleOne.getId());
 		rootWiki.setTitle("Root title");
 		rootWiki.setMarkdown("Root markdown");
-		rootWiki = serviceProvider.getWikiService().createWikiPage(userName, fileEntity.getId(), ObjectType.ENTITY, rootWiki);
+		rootWiki.setCreatedBy(adminId);
+		rootWiki.setModifiedBy(adminId);
+		Map<String, FileHandle> map = new HashMap<String, FileHandle>();
+		map.put(handleOne.getFileName(), handleOne);
+		rootWiki = wikiPageDAO.create(rootWiki, map, fileEntity.getId(), ObjectType.ENTITY);
 		rootWikiKey = new WikiPageKey(fileEntity.getId(), ObjectType.ENTITY, rootWiki.getId());
 		wikiToDelete.add(rootWikiKey);
 		
@@ -372,7 +415,9 @@ public class MigrationIntegrationAutowireTest {
 		subWiki.setParentWikiId(rootWiki.getId());
 		subWiki.setTitle("Sub-wiki-title");
 		subWiki.setMarkdown("sub-wiki markdown");
-		subWiki = serviceProvider.getWikiService().createWikiPage(userName, fileEntity.getId(), ObjectType.ENTITY, subWiki);
+		subWiki.setCreatedBy(adminId);
+		subWiki.setModifiedBy(adminId);
+		subWiki = wikiPageDAO.create(subWiki, new HashMap<String, FileHandle>(), fileEntity.getId(), ObjectType.ENTITY);
 		subWikiKey = new WikiPageKey(fileEntity.getId(), ObjectType.ENTITY, subWiki.getId());
 	}
 	
@@ -393,7 +438,7 @@ public class MigrationIntegrationAutowireTest {
 		map.put(handleOne.getFileName(), handleOne);
 		List<String> newIds = new ArrayList<String>();
 		newIds.add(handleOne.getId());
-		v2RootWiki = wikiPageDao.create(v2RootWiki, map, fileEntity.getId(), ObjectType.ENTITY, newIds);
+		v2RootWiki = v2wikiPageDAO.create(v2RootWiki, map, fileEntity.getId(), ObjectType.ENTITY, newIds);
 		v2RootWikiKey = new WikiPageKey(fileEntity.getId(), ObjectType.ENTITY, v2RootWiki.getId());
 		wikiToDelete.add(v2RootWikiKey);
 		
@@ -404,7 +449,7 @@ public class MigrationIntegrationAutowireTest {
 		v2SubWiki.setParentWikiId(v2RootWiki.getId());
 		v2SubWiki.setTitle("V2 Sub-wiki-title");
 		v2SubWiki.setMarkdownFileHandleId(markdownOne.getId());
-		v2SubWiki = wikiPageDao.create(v2SubWiki, new HashMap<String, FileHandle>(), fileEntity.getId(), ObjectType.ENTITY, new ArrayList<String>());
+		v2SubWiki = v2wikiPageDAO.create(v2SubWiki, new HashMap<String, FileHandle>(), fileEntity.getId(), ObjectType.ENTITY, new ArrayList<String>());
 		v2SubWikiKey = new WikiPageKey(fileEntity.getId(), ObjectType.ENTITY, v2SubWiki.getId()); 
 	}
 
@@ -456,7 +501,7 @@ public class MigrationIntegrationAutowireTest {
 	 * Create the file handles used by this test.
 	 * @throws NotFoundException
 	 */
-	public void createFileHandles() throws NotFoundException {
+	public String createFileHandles() throws NotFoundException {
 		fileHandlesToDelete = new LinkedList<String>();
 		// Create a file handle
 		handleOne = new S3FileHandle();
@@ -489,6 +534,8 @@ public class MigrationIntegrationAutowireTest {
 		// Set two as the preview of one
 		fileMetadataDao.setPreviewId(handleOne.getId(), preview.getId());
 		fileHandlesToDelete.add(handleOne.getId());
+		
+		return handleOne.getId();
 	}
 
 	private void createStorageQuota() {
@@ -501,18 +548,13 @@ public class MigrationIntegrationAutowireTest {
 		String userNamePrefix = "GoinOnTheOregonTrail@";
 		List<String> adder = new ArrayList<String>();
 		
-		// Make two groups
+		// Make one group
 		UserGroup parentGroup = new UserGroup();
 		parentGroup.setIsIndividual(false);
 		parentGroup.setName(groupNamePrefix+"1");
 		parentGroup.setId(userGroupDAO.create(parentGroup));
 		
-		UserGroup nestedGroup = new UserGroup();
-		nestedGroup.setIsIndividual(false);
-		nestedGroup.setName(groupNamePrefix+"2");
-		nestedGroup.setId(userGroupDAO.create(nestedGroup));
-		
-		// Make three users
+		// Make two users
 		UserGroup parentUser = new UserGroup();
 		parentUser.setIsIndividual(true);
 		parentUser.setName(userNamePrefix+"1");
@@ -523,22 +565,10 @@ public class MigrationIntegrationAutowireTest {
 		siblingUser.setName(userNamePrefix+"2");
 		siblingUser.setId(userGroupDAO.create(siblingUser));
 		
-		UserGroup childUser = new UserGroup();
-		childUser.setIsIndividual(true);
-		childUser.setName(userNamePrefix+"3");
-		childUser.setId(userGroupDAO.create(childUser));
-		
 		// Nest one group and two users within the parent group
-		adder.add(nestedGroup.getId());
 		adder.add(parentUser.getId());
 		adder.add(siblingUser.getId());
 		groupMembersDAO.addMembers(parentGroup.getId(), adder);
-		
-		// Nest two users within the child group
-		adder.clear();
-		adder.add(siblingUser.getId());
-		adder.add(childUser.getId());
-		groupMembersDAO.addMembers(nestedGroup.getId(), adder);
 		
 		return parentGroup;
 	}
@@ -548,6 +578,30 @@ public class MigrationIntegrationAutowireTest {
 		authDAO.changePassword(principalId, "ThisIsMySuperSecurePassword");
 		authDAO.changeSecretKey(principalId);
 		authDAO.changeSessionToken(principalId, null);
+	}
+	
+	@SuppressWarnings("serial")
+	private void createMessages(final UserGroup group, String fileHandleId) {
+		MessageToUser dto = new MessageToUser();
+		// Note: ID is auto generated
+		dto.setCreatedBy(group.getId());
+		dto.setFileHandleId(fileHandleId);
+		// Note: CreatedOn is set by the DAO
+		dto.setSubject("See you on the other side?");
+		dto.setRecipients(new HashSet<String>() {{add(group.getId());}});
+		dto.setInReplyTo(null);
+		// Note: InReplyToRoot is calculated by the DAO
+
+		dto = messageDAO.createMessage(dto);
+		
+		messageDAO.createMessageStatus(dto.getId(), group.getId());
+		
+		Comment dto2 = new Comment();
+		dto2.setCreatedBy(group.getId());
+		dto2.setFileHandleId(fileHandleId);
+		dto2.setTargetId("1337");
+		dto2.setTargetType(ObjectType.ENTITY);
+		commentDAO.createComment(dto2);
 	}
 	
 	private void createTeamsRequestsAndInvitations(UserGroup group) {
@@ -579,7 +633,7 @@ public class MigrationIntegrationAutowireTest {
 		mis.setTeamId(""+group.getId());
 		
 		// need another valid user group
-		mis.setInvitees(Arrays.asList(new String[]{individUser.getId()}));
+		mis.setInviteeId(individUser.getId());
 		Long.parseLong(individUser.getId());
 		
 		membershipInvtnSubmissionDAO.create(mis);

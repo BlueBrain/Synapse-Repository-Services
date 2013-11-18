@@ -229,6 +229,7 @@ public class MigratableTableDAOImplAutowireTest {
 		expectedPrimaryTypes.add(MigrationType.PRINCIPAL);
 		expectedPrimaryTypes.add(MigrationType.USER_PROFILE);
 		expectedPrimaryTypes.add(MigrationType.FILE_HANDLE);
+		expectedPrimaryTypes.add(MigrationType.MESSAGE_CONTENT);
 		expectedPrimaryTypes.add(MigrationType.WIKI_PAGE);
 		expectedPrimaryTypes.add(MigrationType.WIKI_OWNERS);
 		expectedPrimaryTypes.add(MigrationType.V2_WIKI_PAGE);
@@ -249,6 +250,7 @@ public class MigratableTableDAOImplAutowireTest {
 		expectedPrimaryTypes.add(MigrationType.MEMBERSHIP_INVITATION_SUBMISSION);
 		expectedPrimaryTypes.add(MigrationType.MEMBERSHIP_REQUEST_SUBMISSION);
 		expectedPrimaryTypes.add(MigrationType.COLUMN_MODEL);
+		expectedPrimaryTypes.add(MigrationType.TABLE_SEQUENCE);
 		expectedPrimaryTypes.add(MigrationType.STORAGE_QUOTA);
 		expectedPrimaryTypes.add(MigrationType.CHANGE);
 		// Get the list

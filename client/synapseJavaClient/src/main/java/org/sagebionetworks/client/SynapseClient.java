@@ -13,7 +13,6 @@ import org.apache.http.client.ClientProtocolException;
 import org.json.JSONObject;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.evaluation.model.Evaluation;
-import org.sagebionetworks.evaluation.model.EvaluationStatus;
 import org.sagebionetworks.evaluation.model.Participant;
 import org.sagebionetworks.evaluation.model.Submission;
 import org.sagebionetworks.evaluation.model.SubmissionBundle;
@@ -41,6 +40,7 @@ import org.sagebionetworks.repo.model.MembershipInvtnSubmission;
 import org.sagebionetworks.repo.model.MembershipRequest;
 import org.sagebionetworks.repo.model.MembershipRqstSubmission;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.OriginatingClient;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
@@ -79,8 +79,15 @@ import org.sagebionetworks.repo.model.query.QueryTableResults;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.status.StackStatus;
+import org.sagebionetworks.repo.model.storage.StorageUsageDimension;
+import org.sagebionetworks.repo.model.storage.StorageUsageSummaryList;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
+import org.sagebionetworks.repo.model.table.RowReferenceSet;
+import org.sagebionetworks.repo.model.table.RowSet;
+import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
+import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
+import org.sagebionetworks.repo.model.v2.wiki.V2WikiPage;
 import org.sagebionetworks.repo.model.versionInfo.SynapseVersionInfo;
 import org.sagebionetworks.repo.model.wiki.WikiHeader;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
@@ -93,7 +100,7 @@ import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
  * @author jmhill
  * 
  */
-public interface SynapseClient {
+public interface SynapseClient extends BaseClient {
 
 	/**
 	 * Get the current status of the stack
@@ -105,16 +112,6 @@ public interface SynapseClient {
 	 * Get the endpoint of the repository service
 	 */
 	public String getRepoEndpoint();
-
-	/**
-	 * Each request includes the 'User-Agent' header. This is set to:
-	 * 'User-Agent':'Synpase-Java-Client/<version_number>'
-	 * 
-	 * @param toAppend
-	 *            Addition User-Agent information can be appended to this string
-	 *            via this parameter
-	 */
-	public void appendUserAgent(String toAppend);
 
 	/**
 	 * The repository endpoint includes the host and version. For example:
@@ -143,11 +140,6 @@ public interface SynapseClient {
 	 * Get the endpoint of the file service
 	 */
 	public String getFileEndpoint();
-
-	/**
-	 * Authenticate the Synapse client with an existing session token
-	 */
-	public void setSessionToken(String sessionToken);
 
 	public AttachmentData uploadAttachmentToSynapse(String entityId, File temp, String fileName) 
 			throws JSONObjectAdapterException, SynapseException, IOException;
@@ -203,13 +195,6 @@ public interface SynapseClient {
 	 * Refreshes the cached session token so that it can be used for another 24 hours
 	 */
 	public boolean revalidateSession() throws SynapseException;
-
-	/**
-	 * Get the current session token used by this client.
-	 * 
-	 * @return the session token
-	 */
-	public String getCurrentSessionToken();
 
 	/**
 	 * Create a new Entity.
@@ -462,6 +447,48 @@ public interface SynapseClient {
 			Long versionNumber) throws JSONObjectAdapterException,
 			SynapseException;
 
+	public V2WikiPage createV2WikiPage(String ownerId, ObjectType ownerType,
+			V2WikiPage toCreate) throws JSONObjectAdapterException,
+			SynapseException;
+
+	public V2WikiPage getV2WikiPage(WikiPageKey key)
+			throws JSONObjectAdapterException, SynapseException;
+
+	public V2WikiPage updateV2WikiPage(String ownerId, ObjectType ownerType,
+			V2WikiPage toUpdate) throws JSONObjectAdapterException,
+			SynapseException;
+	
+	public V2WikiPage restoreV2WikiPage(String ownerId, ObjectType ownerType,
+			V2WikiPage toUpdate, Long versionToRestore) throws JSONObjectAdapterException,
+			SynapseException;
+	
+	public V2WikiPage getV2RootWikiPage(String ownerId, ObjectType ownerType)
+		throws JSONObjectAdapterException, SynapseException;
+
+	public FileHandleResults getV2WikiAttachmentHandles(WikiPageKey key)
+		throws JSONObjectAdapterException, SynapseException;
+
+	public File downloadV2WikiAttachment(WikiPageKey key, String fileName)
+		throws ClientProtocolException, IOException;
+	
+	public File downloadV2WikiAttachmentPreview(WikiPageKey key, String fileName)
+		throws ClientProtocolException, FileNotFoundException, IOException;
+	
+	public URL getV2WikiAttachmentPreviewTemporaryUrl(WikiPageKey key,
+			String fileName) throws ClientProtocolException, IOException;
+
+	public URL getV2WikiAttachmentTemporaryUrl(WikiPageKey key,
+			String fileName) throws ClientProtocolException, IOException;
+
+	public void deleteV2WikiPage(WikiPageKey key) throws SynapseException;
+	
+	public PaginatedResults<V2WikiHeader> getV2WikiHeaderTree(String ownerId,
+		ObjectType ownerType) throws SynapseException,
+		JSONObjectAdapterException;
+	
+	public PaginatedResults<V2WikiHistorySnapshot> getV2WikiHistory(WikiPageKey key, Long limit, Long offset)
+		throws JSONObjectAdapterException, SynapseException;
+	
 	@Deprecated
 	public File downloadLocationableFromSynapse(Locationable locationable)
 			throws SynapseException;
@@ -604,13 +631,10 @@ public interface SynapseClient {
 	public PaginatedResults<Evaluation> getEvaluationByContentSource(String id,
 			int offset, int limit) throws SynapseException;
 
-	@Deprecated
 	public PaginatedResults<Evaluation> getEvaluationsPaginated(int offset, int limit)
 			throws SynapseException;
 
-	@Deprecated
-	public PaginatedResults<Evaluation> getAvailableEvaluationsPaginated(
-			EvaluationStatus status, int offset, int limit)
+	public PaginatedResults<Evaluation> getAvailableEvaluationsPaginated(int offset, int limit)
 			throws SynapseException;
 
 	public Long getEvaluationCount() throws SynapseException;
@@ -684,6 +708,8 @@ public interface SynapseClient {
 			throws SynapseException;
 
 	public QueryTableResults queryEvaluation(String query) throws SynapseException;
+	
+	public StorageUsageSummaryList getStorageUsageSummary(List<StorageUsageDimension> aggregation) throws SynapseException;
 
 	public void moveToTrash(String entityId) throws SynapseException;
 
@@ -726,6 +752,14 @@ public interface SynapseClient {
 
 	public UserEvaluationPermissions getUserEvaluationPermissions(String evalId)
 			throws SynapseException;
+	
+	/**
+	 * Append rows to table entity.
+	 * @param toAppend
+	 * @return
+	 * @throws SynapseException 
+	 */
+	public RowReferenceSet appendRowsToTable(RowSet toAppend) throws SynapseException;
 
 	/**
 	 * Create a new ColumnModel. If a column already exists with the same parameters,
@@ -950,7 +984,23 @@ public interface SynapseClient {
 	 * Creates a user
 	 */
 	public void createUser(NewUser user) throws SynapseException;
+	
+	/**
+	 * Creates a user
+	 */
+	public void createUser(NewUser user, OriginatingClient originClient) throws SynapseException;
+	
+	/**
+	 * Prompts Synapse to resent the email used to set a new user's password, as if request 
+	 * was sent from Synapse.
+	 */
+	public void resendPasswordEmail(String email) throws SynapseException;
 
+	/**
+	 * Prompts Synapse to resent the email used to set a new user's password
+	 */
+	public void resendPasswordEmail(String email, OriginatingClient originClient) throws SynapseException;
+	
 	/**
 	 * Retrieves the bare-minimum amount of information about the current user
 	 * i.e. email and name
@@ -973,18 +1023,51 @@ public interface SynapseClient {
 	public void changeEmail(String sessionToken, String newPassword) throws SynapseException;
 	
 	/**
-	 * Sends a password reset email to the current user 
+	 * Sends a password reset email to the current user as if request came from Synapse.
 	 */
 	public void sendPasswordResetEmail() throws SynapseException;
 	
 	/**
-	 * Sends a password reset email to the given user
+	 * Sends a password reset email to the current user 
+	 */
+	public void sendPasswordResetEmail(OriginatingClient originClient) throws SynapseException;
+	
+	/**
+	 * Sends a password reset email to the given user as if request came from Synapse.
 	 */
 	public void sendPasswordResetEmail(String email) throws SynapseException;
+	
+	/**
+	 * Sends a password reset email to the given user
+	 */
+	public void sendPasswordResetEmail(String email, OriginatingClient originClient) throws SynapseException;
 	
 	/**
 	 * Performs OpenID authentication using the set of parameters from an OpenID provider
 	 * @return A session token if the authentication passes
 	 */
+	public Session passThroughOpenIDParameters(String queryString) throws SynapseException;
+	
+	/**
+	 * See {@link #passThroughOpenIDParameters(String)}
+	 * @param acceptsTermsOfUse Whether this request should also mark the user as having accepted the terms of use
+	 */
 	public Session passThroughOpenIDParameters(String queryString, Boolean acceptsTermsOfUse) throws SynapseException;
+	
+	/**
+	 * See {@link #passThroughOpenIDParameters(String)}
+	 * 
+	 * @param createUserIfNecessary
+	 *            Whether a user should be created if the user does not already
+	 *            exist
+	 */
+	public Session passThroughOpenIDParameters(String queryString, Boolean acceptsTermsOfUse,
+			Boolean createUserIfNecessary) throws SynapseException;
+	
+	/**
+	 * @param originClient
+	 * 		Which client did the user access to authenticate via a third party provider (Synapse or Bridge)?
+	 */
+	public Session passThroughOpenIDParameters(String queryString, Boolean acceptsTermsOfUse,
+			Boolean createUserIfNecessary, OriginatingClient originClient) throws SynapseException;
 }

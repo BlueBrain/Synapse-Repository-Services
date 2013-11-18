@@ -1,21 +1,31 @@
 package org.sagebionetworks.repo.web.service;
 
+import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.manager.wiki.V2WikiManager;
 import org.sagebionetworks.repo.manager.wiki.WikiManager;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
+import org.sagebionetworks.repo.model.dbo.dao.DBOWikiMigrationDAO;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
+import org.sagebionetworks.repo.model.v2.wiki.V2WikiPage;
 import org.sagebionetworks.repo.model.wiki.WikiHeader;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.repo.web.WikiModelTranslator;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 public class WikiServiceImpl implements WikiService {
 	
@@ -24,31 +34,53 @@ public class WikiServiceImpl implements WikiService {
 	@Autowired
 	WikiManager wikiManager;
 	@Autowired
+	V2WikiManager v2WikiManager;
+	@Autowired
+	DBOWikiMigrationDAO wikiMigrationDao;
+	@Autowired
+	WikiModelTranslator wikiModelTranslationHelper;
+	@Autowired
 	FileHandleManager fileHandleManager;
 	
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public WikiPage createWikiPage(String userId, String objectId,	ObjectType objectType, WikiPage toCreate) throws DatastoreException, NotFoundException {
+	public WikiPage createWikiPage(String userId, String objectId,	ObjectType objectType, WikiPage toCreate) throws DatastoreException, NotFoundException, IOException {
 		// Resolve the userID
 		UserInfo user = userManager.getUserInfo(userId);
-		return wikiManager.createWikiPage(user, objectId, objectType, toCreate);
+		// Create the V1 wiki
+		WikiPage createdResult = wikiManager.createWikiPage(user, objectId, objectType, toCreate);
+		// Translate the created V1 wiki into a V2 and create it
+		V2WikiPage translated = wikiModelTranslationHelper.convertToV2WikiPage(createdResult, user);
+		V2WikiPage result = wikiMigrationDao.migrateWiki(translated);
+		return createdResult;
 	}
 
 	@Override
-	public WikiPage getWikiPage(String userId, WikiPageKey key) throws DatastoreException, NotFoundException {
+	public WikiPage getWikiPage(String userId, WikiPageKey key) throws DatastoreException, NotFoundException, IOException {
 		UserInfo user = userManager.getUserInfo(userId);
 		return wikiManager.getWikiPage(user, key);
 	}
 
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public WikiPage updateWikiPage(String userId, String objectId,	ObjectType objectType, WikiPage toUpdate) throws DatastoreException, NotFoundException {
+	public WikiPage updateWikiPage(String userId, String objectId,	ObjectType objectType, WikiPage toUpdate) throws DatastoreException, NotFoundException, IOException {
 		UserInfo user = userManager.getUserInfo(userId);
-		return wikiManager.updateWikiPage(user, objectId, objectType, toUpdate);
+		// Update the V1 wiki
+		WikiPage updateResult = wikiManager.updateWikiPage(user, objectId, objectType, toUpdate);
+		// Translate the updated V1 wiki
+		V2WikiPage translated = wikiModelTranslationHelper.convertToV2WikiPage(updateResult, user);
+		// Update the V2 mirror
+		V2WikiPage result = wikiMigrationDao.migrateWiki(translated);
+		return updateResult;
 	}
 
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
 	public void deleteWikiPage(String userId, WikiPageKey wikiPageKey) throws DatastoreException, NotFoundException {
 		UserInfo user = userManager.getUserInfo(userId);
+		// Delete the V1 wiki and its mirror V2 wiki
 		wikiManager.deleteWiki(user, wikiPageKey);
+		v2WikiManager.deleteWiki(user, wikiPageKey);
 	}
 
 	@Override
@@ -84,7 +116,7 @@ public class WikiServiceImpl implements WikiService {
 	}
 
 	@Override
-	public WikiPage getRootWikiPage(String userId, String ownerId, ObjectType type) throws UnauthorizedException, NotFoundException {
+	public WikiPage getRootWikiPage(String userId, String ownerId, ObjectType type) throws UnauthorizedException, NotFoundException, IOException {
 		UserInfo user = userManager.getUserInfo(userId);
 		return wikiManager.getRootWikiPage(user, ownerId, type);
 	}

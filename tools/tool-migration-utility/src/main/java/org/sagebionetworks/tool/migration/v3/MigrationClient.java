@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -20,11 +21,11 @@ import org.apache.commons.logging.LogFactory;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.PaginatedResults;
-import org.sagebionetworks.repo.model.migration.CrowdMigrationResult;
-import org.sagebionetworks.repo.model.migration.CrowdMigrationResultType;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.repo.model.migration.MigrationTypeCount;
 import org.sagebionetworks.repo.model.migration.MigrationTypeCounts;
+import org.sagebionetworks.repo.model.migration.WikiMigrationResult;
+import org.sagebionetworks.repo.model.migration.WikiMigrationResultType;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.repo.model.status.StatusEnum;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
@@ -123,16 +124,6 @@ public class MigrationClient {
 		destStatus.setStatus(status);
 		destStatus.setCurrentMessage(message);
 		destStatus = client.updateCurrentStackStatus(destStatus);
-	}
-	
-	/**
-	 * Get the current change number of the destination.
-	 * @return
-	 * @throws SynapseException
-	 * @throws JSONObjectAdapterException
-	 */
-	private long getDestinationCurrentChangeNumber() throws SynapseException, JSONObjectAdapterException{
-		return this.factory.createNewDestinationClient().getCurrentChangeNumber().getNextChangeNumber();
 	}
 	
 	/**
@@ -420,33 +411,42 @@ public class MigrationClient {
 		}
 	}
 	
-	public void migrateCrowd() throws SynapseException, JSONObjectAdapterException {
-		SynapseAdminClient client = factory.createNewDestinationClient();
-		long offset = 10;
-		PaginatedResults<CrowdMigrationResult> res = client.migrateFromCrowd(10, 0);
-		boolean batchFailed = this.containsFailure(res.getResults());
-		long crowdTotalNumRes = res.getTotalNumberOfResults();
-		while (offset <= crowdTotalNumRes) {
-			log.debug("Migrating crowd data, offset " + offset);
-			res = client.migrateFromCrowd(10, offset);
-			if (this.containsFailure(res.getResults())) {
-				batchFailed = true;
-			}
-			offset += 10;
+	public void migrateWikisToV2() throws SynapseException, JSONObjectAdapterException {
+		log.info("Migration Wikis to V2");
+		SynapseAdminClient destination = factory.createNewDestinationClient();
+		long limit = 10;
+		long offset = 0;
+		int failures = 0; // Number of failures
+		log.info("Migrating group of wikis at offset: " + offset);
+		PaginatedResults<WikiMigrationResult> results = destination.migrateWikisToV2(offset, limit);
+		failures += processMigrationResults(results.getResults());
+		long totalNumOfV1Wikis = results.getTotalNumberOfResults();
+		offset += results.getResults().size();
+		while(offset < totalNumOfV1Wikis) {
+			// Migrate while we have not requested for the migration of all v1 wikis
+			log.info("Migrating group of wikis at offset: " + offset);
+			results = destination.migrateWikisToV2(offset, limit);
+			failures += processMigrationResults(results.getResults());
+			offset += results.getResults().size();
 		}
-		if (batchFailed) {
-			throw new RuntimeException("Failed during Crowd migration");
+		
+		if(failures != 0) {
+			throw new RuntimeException("There were " + failures + " failures during wiki migration.");
+		} else {
+			log.info("NO FAILURES!");
 		}
+		
 	}
 	
-	public boolean containsFailure(List<CrowdMigrationResult> batch) {
-		boolean failed = false;
-		for (CrowdMigrationResult r: batch) {
-			if (r.getResultType() == CrowdMigrationResultType.FAILURE) {
-				log.error("Crowd migration failed for " + r.getUsername() + " / " + r.getUserId() + " with error '" + r.getMessage() + "'");
-				failed = true;
+	private int processMigrationResults(List<WikiMigrationResult> results) {
+		int failures = 0;
+		for(WikiMigrationResult result: results) {
+			if(result.getResultType().equals(WikiMigrationResultType.FAILURE)) {
+				failures++;
+				log.info("[MIGRATION FAILURE] " + result.getMessage());
 			}
 		}
-		return failed;
+		// Return the number of failures in these results
+		return failures;
 	}
 }

@@ -1,5 +1,6 @@
 package org.sagebionetworks.auth.services;
 
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -7,25 +8,20 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.sagebionetworks.authutil.OpenIDConsumerUtils;
+import org.sagebionetworks.auth.services.AuthenticationService.PW_MODE;
 import org.sagebionetworks.authutil.OpenIDInfo;
 import org.sagebionetworks.repo.manager.AuthenticationManager;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.UserProfileManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.OriginatingClient;
+import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.UserProfile;
+import org.sagebionetworks.repo.model.auth.LoginCredentials;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.RegistrationInfo;
 
@@ -34,19 +30,19 @@ public class AuthenticationServiceImplTest {
 	private AuthenticationServiceImpl service;
 	
 	private UserManager mockUserManager;
-	private UserProfileManager mockUserProfileManager;
 	private AuthenticationManager mockAuthenticationManager;
 	
-	private NewUser credential;
+	private LoginCredentials credential;
 	private UserInfo userInfo;
 	private static String username = "AuthServiceUser";
+	private static String fullName = "Auth User";
 	private static String password = "NeverUse_thisPassword";
 	private static long userId = 123456789L;
 	private static String sessionToken = "Some session token";
 	
 	@Before
 	public void setUp() throws Exception {
-		credential = new NewUser();
+		credential = new LoginCredentials();
 		credential.setEmail(username);
 		credential.setPassword(password);
 		
@@ -62,13 +58,10 @@ public class AuthenticationServiceImplTest {
 		when(mockUserManager.getUserInfo(eq(username))).thenReturn(userInfo);
 		when(mockUserManager.getGroupName(anyString())).thenReturn(username);
 		
-		mockUserProfileManager = Mockito.mock(UserProfileManager.class);
-		when(mockUserProfileManager.getUserProfile(any(UserInfo.class), anyString())).thenReturn(new UserProfile());
-		
 		mockAuthenticationManager = Mockito.mock(AuthenticationManager.class);
 		when(mockAuthenticationManager.checkSessionToken(eq(sessionToken))).thenReturn(userId);
 		
-		service = new AuthenticationServiceImpl(mockUserManager, mockUserProfileManager, mockAuthenticationManager);
+		service = new AuthenticationServiceImpl(mockUserManager, mockAuthenticationManager);
 	}
 	
 	@Test
@@ -80,25 +73,32 @@ public class AuthenticationServiceImplTest {
 		service.authenticate(credential);
 		verify(mockAuthenticationManager).authenticate(eq(username), eq(password));
 		verify(mockUserManager).getUserInfo(anyString());
-		verify(mockUserProfileManager, times(0)).updateUserProfile(eq(userInfo), any(UserProfile.class));
 		verify(mockAuthenticationManager).setTermsOfUseAcceptance(eq("" + userId), eq(true));
 		
 	}
 	
-	@Test(expected=UnauthorizedException.class)
+	@Test(expected=TermsOfUseException.class)
 	public void testAuthenticateToUFail() throws Exception {
 		// ToU checking should fail
 		credential.setAcceptsTermsOfUse(false);
 		service.authenticate(credential);
 	}
 	
-	@Test(expected=UnauthorizedException.class)
+	@Test
 	public void testRevalidateToU() throws Exception {
-		userInfo.getUser().setAgreesToTermsOfUse(true);
-		Assert.assertTrue(service.hasUserAcceptedTermsOfUse("" + userId));
-
+		when(mockAuthenticationManager.checkSessionToken(eq(sessionToken))).thenThrow(new TermsOfUseException());
+		
+		// A boolean flag should let us get past this call
 		userInfo.getUser().setAgreesToTermsOfUse(false);
-		service.revalidate("Some session token");
+		service.revalidate(sessionToken, false);
+
+		// But it should default to true
+		try {
+			service.revalidate(sessionToken);
+			fail();
+		} catch (TermsOfUseException e) {
+			// Expected
+		}
 	}
 	
 	@Test
@@ -108,10 +108,10 @@ public class AuthenticationServiceImplTest {
 		userInfo.getUser().setAgreesToTermsOfUse(false);
 		
 		OpenIDInfo info = new OpenIDInfo();
-		info.setMap(new HashMap<String, List<String>>());
-		info.getMap().put(OpenIDConsumerUtils.AX_EMAIL, Arrays.asList(new String[] { username }));
+		info.setEmail(username);
+		info.setFullName(fullName);
 		
-		service.processOpenIDInfo(info, null);
+		service.processOpenIDInfo(info, null, true);
 		
 		// The user should be created
 		verify(mockUserManager).createUser(any(NewUser.class));
@@ -125,16 +125,15 @@ public class AuthenticationServiceImplTest {
 		userInfo.getUser().setAgreesToTermsOfUse(false);
 		
 		OpenIDInfo info = new OpenIDInfo();
-		info.setMap(new HashMap<String, List<String>>());
-		info.getMap().put(OpenIDConsumerUtils.AX_EMAIL, Arrays.asList(new String[] { username }));
+		info.setEmail(username);
+		info.setFullName(fullName);
 		
-		service.processOpenIDInfo(info, true);
+		service.processOpenIDInfo(info, true, false);
 		
 		// User should not be created, ToU should be updated
 		verify(mockUserManager, times(0)).createUser(any(NewUser.class));
 		verify(mockAuthenticationManager).authenticate(eq(username), eq((String) null));
 		verify(mockUserManager).getUserInfo(anyString());
-		verify(mockUserProfileManager, times(0)).updateUserProfile(eq(userInfo), any(UserProfile.class));
 		verify(mockAuthenticationManager).setTermsOfUseAcceptance(eq("" + userId), eq(true));
 	}
 	
@@ -146,7 +145,8 @@ public class AuthenticationServiceImplTest {
 		registrationInfo.setPassword(password);
 		registrationInfo.setRegistrationToken(AuthorizationConstants.CHANGE_EMAIL_TOKEN_PREFIX + sessionToken);
 		service.updateEmail(username, registrationInfo);
-		verify(mockUserManager, times(3)).getUserInfo(eq(username));
+		verify(mockUserManager, times(2)).getUserInfo(eq(username));
 		verify(mockUserManager).updateEmail(eq(userInfo), eq(username));
 	}
+	
 }

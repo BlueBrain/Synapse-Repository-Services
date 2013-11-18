@@ -16,6 +16,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.V2_COL_WIKI_
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -209,65 +210,132 @@ public class V2DBOWikiPageDaoImplAutowiredTest {
 	@Test
 	public void testUpdate() throws NotFoundException, InterruptedException{
 		V2WikiPage page = new V2WikiPage();
-		String ownerId = "syn1082";
-		ObjectType ownerType = ObjectType.EVALUATION;
-		page.setTitle("Title");
-		page.setCreatedBy(creatorUserGroupId);
-		page.setModifiedBy(creatorUserGroupId);
-		page.setMarkdownFileHandleId(markdownOne.getId());
-		
-		// Add an attachment
-		page.setAttachmentFileHandleIds(new LinkedList<String>());
-		page.getAttachmentFileHandleIds().add(attachOne.getId());
-		Map<String, FileHandle> fileNameMap = new HashMap<String, FileHandle>();
-		fileNameMap.put(attachOne.getFileName(), attachOne);
-		List<String> newIds = new ArrayList<String>();
-		newIds.add(attachOne.getId());
-		
-		// Create it
-		V2WikiPage clone = wikiPageDao.create(page, fileNameMap, ownerId, ownerType, newIds);
-		assertNotNull(clone);
+        String ownerId = "syn1082";
+        ObjectType ownerType = ObjectType.EVALUATION;
+        page.setTitle("Title");
+        page.setCreatedBy(creatorUserGroupId);
+        page.setModifiedBy(creatorUserGroupId);
+        page.setMarkdownFileHandleId(markdownOne.getId());
+        
+        // Add an attachment
+        page.setAttachmentFileHandleIds(new LinkedList<String>());
+        page.getAttachmentFileHandleIds().add(attachOne.getId());
+        Map<String, FileHandle> fileNameMap = new HashMap<String, FileHandle>();
+        fileNameMap.put(attachOne.getFileName(), attachOne);
+        List<String> newIds = new ArrayList<String>();
+        newIds.add(attachOne.getId());
+        
+        // Create it
+        V2WikiPage clone = wikiPageDao.create(page, fileNameMap, ownerId, ownerType, newIds);
+        assertNotNull(clone);
 
-		WikiPageKey key = new WikiPageKey(ownerId, ownerType, clone.getId());
+        WikiPageKey key = new WikiPageKey(ownerId, ownerType, clone.getId());
+        toDelete.add(key);
+        String startEtag = clone.getEtag();
+        Long startModifiedOn = clone.getModifiedOn().getTime();
+        
+        List<Long> reservationIdsBeforeUpdate = wikiPageDao.getFileHandleReservationForWiki(key);
+        // The archive should have one entry
+        assertTrue(reservationIdsBeforeUpdate.size() == 1);
+        
+        // Sleep to ensure the next date is higher.
+        Thread.sleep(1000);
+        
+        // Add another attachment to the list and update markdown filehandle id to new markdown
+        clone.getAttachmentFileHandleIds().add(attachTwo.getId());
+        fileNameMap.put(attachTwo.getFileName(), attachTwo);
+        
+        List<String> newIds2 = new ArrayList<String>();
+        newIds2.add(attachTwo.getId());
+        
+        // Update
+        V2WikiPage clone2 = wikiPageDao.updateWikiPage(clone, fileNameMap, ownerId, ownerType, newIds2);                
+        assertNotNull(clone2);
+        assertNotNull(clone2.getEtag());
+        
+        // The etag should be new and the modified time should be greater than the previous modified time
+        Long endModifiedOn = clone2.getModifiedOn().getTime();
+        assertTrue("Modified On should have change and be greater than the previous timestamp", endModifiedOn > startModifiedOn);
+        
+        // Make sure the attachments for this wiki are updated to have 2 files
+        assertEquals(clone.getAttachmentFileHandleIds(), clone2.getAttachmentFileHandleIds());
+        
+        List<Long> reservationIds = wikiPageDao.getFileHandleReservationForWiki(key);
+        // The archive should have only added one more entry
+        assertTrue(reservationIds.size() == 2);
+
+        clone2.setMarkdownFileHandleId(markdownTwo.getId());
+        // Update with same fileNameMap
+        V2WikiPage clone3 = wikiPageDao.updateWikiPage(clone2, fileNameMap, ownerId, ownerType, new ArrayList<String>());                
+        List<Long> reservationIds2 = wikiPageDao.getFileHandleReservationForWiki(key);                
+        // the toInsert list of attachments should be 0 and the archive should still be size 2
+        assertTrue(reservationIds2.size() == 2);
+	}
+	
+	@Test
+	public void testParentCycle() throws NotFoundException {
+		// When updating the parent wiki id, the check for valid parent ids
+		// should ensure that the update will not create a cycle. 
+		String ownerId = "syn182";
+		ObjectType ownerType = ObjectType.ENTITY;
+		
+		V2WikiPage grandparent = new V2WikiPage();
+		grandparent.setTitle("Title");
+		grandparent.setCreatedBy(creatorUserGroupId);
+		grandparent.setModifiedBy(creatorUserGroupId);
+		grandparent.setMarkdownFileHandleId(markdownOne.getId());
+		grandparent.setAttachmentFileHandleIds(new LinkedList<String>());
+		grandparent = wikiPageDao.create(grandparent, new HashMap<String, FileHandle>(), ownerId, ownerType, new ArrayList<String>());
+		WikiPageKey key = new WikiPageKey(ownerId, ownerType, grandparent.getId());
 		toDelete.add(key);
-		String startEtag = clone.getEtag();
-		Long startModifiedOn = clone.getModifiedOn().getTime();
 		
-		List<Long> reservationIdsBeforeUpdate = wikiPageDao.getFileHandleReservationForWiki(key);
-		// The archive should have one entry
-		assertTrue(reservationIdsBeforeUpdate.size() == 1);
+		V2WikiPage parent = new V2WikiPage();
+		parent.setParentWikiId(grandparent.getId());
+		parent.setTitle("Title");
+		parent.setCreatedBy(creatorUserGroupId);
+		parent.setModifiedBy(creatorUserGroupId);
+		parent.setMarkdownFileHandleId(markdownOne.getId());
+		parent.setAttachmentFileHandleIds(new LinkedList<String>());
+		parent = wikiPageDao.create(parent, new HashMap<String, FileHandle>(), ownerId, ownerType, new ArrayList<String>());
+		WikiPageKey key2 = new WikiPageKey(ownerId, ownerType, parent.getId());
+		toDelete.add(key2);
 		
-		// Sleep to ensure the next date is higher.
-		Thread.sleep(1000);
+		V2WikiPage child = new V2WikiPage();
+		child.setParentWikiId(parent.getId());
+		child.setTitle("Title");
+		child.setCreatedBy(creatorUserGroupId);
+		child.setModifiedBy(creatorUserGroupId);
+		child.setMarkdownFileHandleId(markdownOne.getId());
+		child.setAttachmentFileHandleIds(new LinkedList<String>());
+		child = wikiPageDao.create(child, new HashMap<String, FileHandle>(), ownerId, ownerType, new ArrayList<String>());
+		WikiPageKey key3 = new WikiPageKey(ownerId, ownerType, child.getId());
+		toDelete.add(key3);
 		
-		// Add another attachment to the list and update markdown filehandle id to new markdown
-		clone.getAttachmentFileHandleIds().add(attachTwo.getId());
-		fileNameMap.put(attachTwo.getFileName(), attachTwo);
-		
-		List<String> newIds2 = new ArrayList<String>();
-		newIds2.add(attachTwo.getId());
-		
-		// Update
-		V2WikiPage clone2 = wikiPageDao.updateWikiPage(clone, fileNameMap, ownerId, ownerType, newIds2);		assertNotNull(clone2);
-		assertNotNull(clone2.getEtag());
-		
-		// The etag should be new and the modified time should be greater than the previous modified time
-		Long endModifiedOn = clone2.getModifiedOn().getTime();
-		assertTrue("Modified On should have change and be greater than the previous timestamp", endModifiedOn > startModifiedOn);
-		
-		// Make sure the attachments for this wiki are updated to have 2 files
-		assertEquals(clone.getAttachmentFileHandleIds(), clone2.getAttachmentFileHandleIds());
-		
-		List<Long> reservationIds = wikiPageDao.getFileHandleReservationForWiki(key);
-		// The archive should have only added one more entry
-		assertTrue(reservationIds.size() == 2);
+		grandparent.setParentWikiId(child.getId());
+		// This creates a cycle
+		try {
+			grandparent = wikiPageDao.updateWikiPage(grandparent, new HashMap<String, FileHandle>(), ownerId, ownerType, new ArrayList<String>());
+			fail("Should have thrown an exception because this update makes a cycle.");
+		} catch(IllegalArgumentException e) {
+			// expected
+		}
 
-		clone2.setMarkdownFileHandleId(markdownTwo.getId());
-		// Update with same fileNameMap
-		V2WikiPage clone3 = wikiPageDao.updateWikiPage(clone2, fileNameMap, ownerId, ownerType, new ArrayList<String>());		
-		List<Long> reservationIds2 = wikiPageDao.getFileHandleReservationForWiki(key);		
-		// the toInsert list of attachments should be 0 and the archive should still be size 2
-		assertTrue(reservationIds2.size() == 2);
+		// Create a wiki with its parent id equal to its own id
+		// Should detect this short cycle.
+		V2WikiPage thirdChild = new V2WikiPage();
+		thirdChild.setId("100");
+		thirdChild.setParentWikiId("100");
+		thirdChild.setTitle("Title");
+		thirdChild.setCreatedBy(creatorUserGroupId);
+		thirdChild.setModifiedBy(creatorUserGroupId);
+		thirdChild.setMarkdownFileHandleId(markdownOne.getId());
+		thirdChild.setAttachmentFileHandleIds(new LinkedList<String>());
+		try {
+			thirdChild = wikiPageDao.create(thirdChild, new HashMap<String, FileHandle>(), ownerId, ownerType, new ArrayList<String>());
+			fail("Should have failed because creating this wiki creates a cycle.");
+		} catch(Exception e) {
+			// expected
+		}
 	}
 	
 	@Test
@@ -292,11 +360,11 @@ public class V2DBOWikiPageDaoImplAutowiredTest {
 		V2WikiPage clone = wikiPageDao.create(page, fileNameMap, ownerId, ownerType, newIds);
 		assertNotNull(clone);
 
-		WikiPageKey key = new WikiPageKey(ownerId, ownerType, clone.getId());
-		toDelete.add(key);
-		
 		// Sleep to ensure the next date is higher.
 		Thread.sleep(1000);
+		 
+		WikiPageKey key = new WikiPageKey(ownerId, ownerType, clone.getId());
+		toDelete.add(key);
 		
 		// Add another attachment to the list and update markdown filehandle id to new markdown
 		clone.getAttachmentFileHandleIds().add(attachTwo.getId());
@@ -403,7 +471,7 @@ public class V2DBOWikiPageDaoImplAutowiredTest {
 		root.setCreatedBy(creatorUserGroupId);
 		root.setModifiedBy(creatorUserGroupId);
 		root.setMarkdownFileHandleId(markdownOne.getId());
-
+		
 		// Create it
 		root = wikiPageDao.create(root, new HashMap<String, FileHandle>(), ownerId, ownerType, new ArrayList<String>());
 		assertNotNull(root);
@@ -493,7 +561,7 @@ public class V2DBOWikiPageDaoImplAutowiredTest {
 		
 		List<V2WikiHistorySnapshot> historyBeforeUpdate = wikiPageDao.getWikiHistory(key, new Long(10), new Long(0));
 		assertTrue(historyBeforeUpdate.size() == 1);
-		
+
 		Thread.sleep(1000);
 		
 		// Add another attachment to the list and update markdown filehandle id to another markdown

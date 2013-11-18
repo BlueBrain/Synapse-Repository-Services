@@ -5,13 +5,13 @@ import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.daemon.BackupRestoreStatus;
 import org.sagebionetworks.repo.model.daemon.RestoreSubmission;
 import org.sagebionetworks.repo.model.message.FireMessagesResult;
-import org.sagebionetworks.repo.model.migration.CrowdMigrationResult;
 import org.sagebionetworks.repo.model.migration.IdList;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.repo.model.migration.MigrationTypeCount;
 import org.sagebionetworks.repo.model.migration.MigrationTypeCounts;
 import org.sagebionetworks.repo.model.migration.MigrationTypeList;
 import org.sagebionetworks.repo.model.migration.RowMetadataResult;
+import org.sagebionetworks.repo.model.migration.WikiMigrationResult;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 
@@ -120,7 +120,7 @@ public interface SynapseAdminClient extends SynapseClient {
 	public FireMessagesResult getCurrentChangeNumber() throws SynapseException, JSONObjectAdapterException;
 	
 	/**
-	 * Migrates a few users from Crowd to RDS
+	 * Migrates some wikis from the V1 DBs to the V2 DBs
 	 */
-	public PaginatedResults<CrowdMigrationResult> migrateFromCrowd(long limit, long offset) throws SynapseException, JSONObjectAdapterException;
+	public PaginatedResults<WikiMigrationResult> migrateWikisToV2(long offset, long limit) throws SynapseException, JSONObjectAdapterException;
 }
